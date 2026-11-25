@@ -1,0 +1,43 @@
+[package]
+name = "clipit"
+version = "0.1.0"
+description = "AutoKlipper - local-first AI video clipping studio"
+authors = ["maeldotdev"]
+license = "MIT"
+repository = ""
+edition = "2024"
+rust-version = "1.90"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "clipit_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.6", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "2.12.7", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+rusqlite = { version = "0.43.0", features = ["bundled"] }
+thiserror = "2.0.21"
+uuid = { version = "1.29.3", features = ["v4"] }
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+tracing-appender = "0.2.5"
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+url = "2.5.8"
+ureq = { version = "3.5.2", default-features = false }
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_Security"] }
+
+
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

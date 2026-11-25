@@ -1,0 +1,18 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "AutoKlipper",
+        "width": 1400,
+        "height": 880,
+        "minWidth": 1100,
+        "minHeight": 700,
+        "decorations": false,
+        "center": true,
+        "backgroundColor": "#070b16",
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=9222"
+      }
+    ]
+  }
+}
