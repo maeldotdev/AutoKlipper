@@ -98,7 +98,7 @@ Open source may qualify for free signing from [SignPath Foundation](https://sign
 
 Installing a newer version over the old one keeps your library. Installed apps also check GitHub for updates.
 
-**The update key** is in `F:\AutoKlipper-keys`: `updater.key` (private), `updater.password.txt`, `updater.key.pub`.
+**The update key** is kept in a private folder outside the repository: `updater.key` (private), `updater.password.txt`, `updater.key.pub`.
 Copy that folder to a second safe place. **If you lose it, installed apps can never be updated again.** Anyone who has it can sign updates your users will accept, so never commit or share it.
 
 **Once, after publishing the repository**, add two secrets on GitHub (Settings, Secrets and variables, Actions):

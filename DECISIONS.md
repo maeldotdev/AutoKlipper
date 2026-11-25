@@ -69,6 +69,6 @@
 | 66 | `scripts/notices.mjs` builds the third-party notices and installer licence page from what is installed; run `npm run notices` after changing dependencies | No extra tool | cargo-about |
 | 67 | A setup guide opens on first start and records `setupDone`; the dashboard keeps a reminder while something is missing | New users need tools and a model before captions work | One-click tool installation |
 | 68 | Updates come from GitHub releases through Tauri's updater: offered at start, installed only on the user's click, refused while jobs or live sessions run | Predictable for the user, no interrupted renders | Silent updates as an option |
-| 69 | The update signing key stays outside the repository (`F:\AutoKlipper-keys`) and in GitHub secrets | A leaked key would let others ship updates | n/a |
+| 69 | The update signing key stays outside the repository and in GitHub secrets | A leaked key would let others ship updates | n/a |
 | 70 | Outside links are opened by name from a fixed list in the backend | Page content can never choose an address | n/a |
 | 13 | The reference screenshot was not attached to the prompt | Visual direction follows the written description (navy, layered blue, glow, compact sidebar) | User supplies the image |

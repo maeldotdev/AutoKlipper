@@ -2,6 +2,9 @@
 
 Local-first AI video clipping studio for Windows. The desktop app imports, downloads, transcribes, clips and exports real video. The browser preview (`npm run dev`) uses sample data and processes nothing.
 
+## Download
+Get the Windows installer from [Releases](https://github.com/MaelPlays/AutoKlipper/releases/latest). The installer is not code-signed yet, so Windows may show "Unknown publisher"; check the file against `SHA256SUMS.txt`. Installed copies offer later versions inside the app. Support the project on [Ko-fi](https://ko-fi.com/maeldotdev).
+
 ## Run
 ```powershell
 npm install
