@@ -2,6 +2,9 @@ import { Suspense, lazy, useEffect, useRef } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { ALL_NAV, NAV_MAIN } from '@/app/routes'
+import { UpdateBanner } from '@/components/UpdateBanner'
+import { IS_MOCK_BACKEND } from '@/services'
+import { useUpdate } from '@/stores/update'
 import { ToastViewport } from '@/components/ui/Overlays'
 import { TooltipProvider } from '@/components/ui/Tooltip'
 import { accentForeground, useSettings } from '@/stores/settings'
@@ -13,7 +16,7 @@ import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { TitleBar } from './TitleBar'
 
-const SetupWizard = lazy(() => import('@/components/SetupWizard').then((m) => ({ default: m.SetupWizard })))
+const SetupScreen = lazy(() => import('@/components/SetupScreen').then((m) => ({ default: m.SetupScreen })))
 
 function useApplySettings() {
   const { theme, accent, density, motion: m } = useSettings()
@@ -61,7 +64,12 @@ function useShortcuts() {
 export function AppShell() {
   useApplySettings()
   useShortcuts()
-  const setupNeeded = useSettings((s) => !s.setupDone)
+  // Desktop only: the browser preview has nothing to set up.
+  const setupNeeded = useSettings((s) => !s.setupDone) && !IS_MOCK_BACKEND
+  const checkUpdates = useSettings((s) => s.checkUpdates)
+  useEffect(() => {
+    if (checkUpdates && !setupNeeded) void useUpdate.getState().check(true)
+  }, [checkUpdates, setupNeeded])
   const { pathname } = useLocation()
   const mainRef = useRef<HTMLElement>(null)
   useEffect(() => {
@@ -79,6 +87,20 @@ export function AppShell() {
     void loadLive()
   }, [loadLib, loadLive])
 
+  if (setupNeeded) {
+    return (
+      <TooltipProvider>
+        <div className="atmosphere flex h-full flex-col overflow-hidden">
+          <TitleBar />
+          <Suspense fallback={null}>
+            <SetupScreen />
+          </Suspense>
+        </div>
+        <ToastViewport />
+      </TooltipProvider>
+    )
+  }
+
   return (
     <TooltipProvider>
       <div className="atmosphere flex h-full flex-col overflow-hidden">
@@ -87,6 +109,7 @@ export function AppShell() {
           <Sidebar />
           <div className="flex min-w-0 flex-1 flex-col">
             <Header />
+            <UpdateBanner />
             <main ref={mainRef} className="min-h-0 flex-1 overflow-y-auto" id="main">
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
@@ -107,7 +130,6 @@ export function AppShell() {
         </div>
       </div>
       <CommandPalette />
-      {setupNeeded ? <Suspense fallback={null}><SetupWizard /></Suspense> : null}
       <ToastViewport />
     </TooltipProvider>
   )

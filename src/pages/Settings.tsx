@@ -15,6 +15,7 @@ import { AiPanel } from '@/components/settings/AiPanel'
 import { IS_MOCK_BACKEND, api, type FfmpegStatus, type ToolStatus } from '@/services'
 import { ACCENTS, useSettings, type ThemeId } from '@/stores/settings'
 import { toast } from '@/stores/ui'
+import { useUpdate } from '@/stores/update'
 import { LANGUAGES, WHISPER_MODELS } from '@/theme/models'
 
 const SECTIONS = [
@@ -48,6 +49,8 @@ export function SettingsPage() {
   const [params, setParams] = useSearchParams()
   const tab = SECTIONS.find((s) => s.id === params.get('tab'))?.id ?? 'general'
   const s = useSettings()
+  const checkUpdate = useUpdate((u) => u.check)
+  const checkingUpdate = useUpdate((u) => u.checking)
   const [clean, setClean] = useState<null | 'cache' | 'temp'>(null)
   const [resetting, setResetting] = useState(false)
   const storage = useStorage()
@@ -116,6 +119,12 @@ export function SettingsPage() {
             <Row label="Open on startup" hint="Which page AutoKlipper shows first.">
               <div className="w-44"><Select aria-label="Startup page" value={s.startup} onChange={(v) => s.set({ startup: v })} options={[{ value: 'dashboard', label: 'Dashboard' }, { value: 'last-page', label: 'Last page used' }]} /></div>
             </Row>
+            {IS_MOCK_BACKEND ? null : (
+              <Row label="Updates" hint="Looks on GitHub for a newer version when AutoKlipper starts. Nothing installs without your click.">
+                <Button loading={checkingUpdate} onClick={() => void checkUpdate()}>Check now</Button>
+                <Switch label="Check for updates at start" checked={s.checkUpdates} onChange={(v) => s.set({ checkUpdates: v })} />
+              </Row>
+            )}
             <Row label="Desktop notifications" hint="Tell me when a long job finishes.">
               <Switch label="Desktop notifications" checked={s.notifications} onChange={(v) => s.set({ notifications: v })} />
             </Row>

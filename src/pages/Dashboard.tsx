@@ -181,7 +181,7 @@ export function Dashboard() {
           )}
           <div className="mt-auto pt-5">
             <p className="mb-1 text-label text-t2">Clips created this week{IS_MOCK_BACKEND ? ' (sample)' : ''}</p>
-            <div className="h-28" aria-hidden>
+            {week.every((d) => !d.clips) ? <p className="py-6 text-center text-label text-t3">No clips yet this week.</p> : <div className="h-28" aria-hidden>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={week} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
                   <defs>
@@ -197,7 +197,7 @@ export function Dashboard() {
                   <Area dataKey="clips" stroke="var(--accent)" strokeWidth={2} fill="url(#act)" />
                 </AreaChart>
               </ResponsiveContainer>
-            </div>
+            </div>}
           </div>
         </section>
 

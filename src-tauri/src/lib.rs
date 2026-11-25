@@ -14,6 +14,7 @@ mod media_commands;
 mod paths;
 mod settings;
 mod state;
+mod update_commands;
 
 use tauri::Manager;
 
@@ -21,6 +22,8 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let paths = paths::AppPaths::locate(&app.path().app_data_dir()?)?;
             let guard = logging::init(&paths.logs);
@@ -77,6 +80,9 @@ pub fn run() {
             live_commands::live_stop,
             live_commands::live_clip_now,
             live_commands::live_running,
+            update_commands::check_update,
+            update_commands::install_update,
+            update_commands::open_link,
         ])
         .build(tauri::generate_context!())
         .expect("error while building AutoKlipper")

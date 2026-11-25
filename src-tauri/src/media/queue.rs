@@ -123,6 +123,12 @@ pub struct Queue {
 }
 
 impl Queue {
+    /// Jobs running or waiting.
+    pub fn active(&self) -> usize {
+        let (running, pending) = self.inner.lock().map(|g| g.sched.counts()).unwrap_or_default();
+        running + pending
+    }
+
     pub fn enqueue(self: &Arc<Self>, app: &AppHandle, task: Task, limit: usize) {
         {
             let mut g = self.inner.lock().unwrap();

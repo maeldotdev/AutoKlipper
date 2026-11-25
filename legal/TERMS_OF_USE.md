@@ -26,6 +26,7 @@ AutoKlipper works with software and models made by others, including FFmpeg, yt-
 - AutoKlipper has no account, no advertising and no usage tracking. maeldotdev receives no data from the app.
 - Videos, transcripts, clips and settings stay on your computer, in the folders shown in Settings.
 - AutoKlipper connects to the internet when you ask it to: to read or download a link or stream, to show a link's thumbnail, and to download AI tools and models (from services such as PyPI, Hugging Face and GitHub). Those services see your IP address and follow their own privacy policies.
+- When it starts, AutoKlipper asks GitHub whether a newer version exists. GitHub sees your IP address. You can turn this off in Settings. An update installs only when you press Update.
 - If you turn on "Use my browser's sign-in", yt-dlp reads that browser's cookies to reach the site. This is off unless you turn it on.
 - Log files stay on your computer.
 

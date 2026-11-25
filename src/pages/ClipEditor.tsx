@@ -200,7 +200,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
         <div className="ml-auto flex items-center gap-2">
           <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) load(f); e.target.value = '' }} />
           {testVideo && !realSrc ? <Button variant="ghost" onClick={clear}>Remove video</Button> : null}
-          {realSrc ? null : <Button onClick={() => fileRef.current?.click()}><Upload size={15} />{testVideo ? 'Change test video' : 'Load test video'}</Button>}
+          {realSrc ? null : <Button onClick={() => fileRef.current?.click()}><Upload size={15} />{testVideo ? 'Change video' : IS_MOCK_BACKEND ? 'Load test video' : 'Preview over a video'}</Button>}
           <Button variant="primary" onClick={doExport}><Download size={15} />Export</Button>
         </div>
       </div>

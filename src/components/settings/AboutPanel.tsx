@@ -1,4 +1,7 @@
+import { Code2, Heart } from 'lucide-react'
 import { useState } from 'react'
+import { Button } from '@/components/ui/Button'
+import { openLink } from '@/lib/links'
 import licence from '../../../LICENSE?raw'
 import terms from '../../../legal/TERMS_OF_USE.md?raw'
 import { version } from '../../../package.json'
@@ -29,6 +32,10 @@ export function AboutPanel() {
       </div>
       <p className="mt-1 max-w-xl text-body text-t2">Local-first AI video clipping studio for Windows. Open source under the MIT licence, by maeldotdev.</p>
       <p className="mt-1 max-w-xl text-label text-t3">FFmpeg, yt-dlp, Python and AI models are separate software with their own licences. They are not part of this app.</p>
+      <div className="mt-4 flex gap-2">
+        <Button onClick={() => openLink('kofi')}><Heart size={15} />Support on Ko-fi</Button>
+        <Button variant="ghost" onClick={() => openLink('github')}><Code2 size={15} />GitHub</Button>
+      </div>
       <div className="mt-5">
         <Segmented<Doc> label="Document" value={doc} onChange={open} options={[{ value: 'licence', label: 'Licence' }, { value: 'terms', label: 'Terms of use' }, { value: 'notices', label: 'Third-party notices' }]} />
       </div>

@@ -1,5 +1,11 @@
 # Changelog
 
+## Updates, first run and polish
+- In-app updates from GitHub releases, signed with the project's update key. A notice offers the new version; nothing installs without a click, and it waits while a job or livestream is running.
+- A fresh install opens a full-screen setup before the app.
+- Support on Ko-fi and GitHub links in the sidebar and About.
+- UI: cards show the site name instead of the full link, History dates no longer wrap, icon buttons have names, the empty weekly chart says so, setup buttons line up with their content.
+
 ## Phase 8, release 0.1.0
 - Fixed: a new library could skip the setup guide because of a flag remembered by the web view.
 - Third-party notices now carry a licence text for every library.

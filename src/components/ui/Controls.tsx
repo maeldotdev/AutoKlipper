@@ -138,6 +138,7 @@ export function Segmented<T extends string>({
           key={o.value}
           value={o.value}
           title={o.title}
+          aria-label={o.title}
           className="flex h-[calc(var(--control-h)-6px)] min-w-8 items-center justify-center gap-1.5 rounded-[5px] px-3 text-label text-t2 transition-colors duration-150 hover:text-t1 data-[state=on]:bg-s3 data-[state=on]:text-t1 data-[state=on]:shadow-[0_0_0_1px_var(--line-strong)]"
         >
           {o.label}

@@ -44,7 +44,7 @@ impl<T> Scheduler<T> {
         self.running.contains(id)
     }
 
-    #[cfg(test)]
+    /// (running, waiting)
     pub fn counts(&self) -> (usize, usize) {
         (self.running.len(), self.pending.len())
     }

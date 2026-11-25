@@ -60,7 +60,7 @@ export function History() {
                     <td className="w-44 px-3">
                       {j.status === 'running' ? <div className="flex items-center gap-2"><Progress value={j.progress} className="flex-1" label={j.title} /><span className="font-mono text-label">{Math.round(j.progress)}%</span></div> : <Badge tone={TONE[j.status]}>{LABEL[j.status]}</Badge>}
                     </td>
-                    <td className="px-3 text-t2">{fmtRelative(j.startedAt)}</td>
+                    <td className="whitespace-nowrap px-3 text-t2">{fmtRelative(j.startedAt)}</td>
                     <td className="px-3 font-mono text-label">{j.status === 'running' ? '' : fmtDuration(j.durationSec)}</td>
                     <td className="px-3 text-right">
                       {!j.simulated && (j.status === 'running' || j.status === 'queued') ? <Button size="sm" onClick={() => cancelJob(j.id)}>Cancel</Button> : null}

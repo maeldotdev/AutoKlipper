@@ -119,6 +119,9 @@ Frontend bridge: `services/index.ts` exports `api.library` and `api.system`. Des
 - Tauri commands: `ai_setup_face`, `track_faces`, `audio_peaks`.
 - End-to-end test: `scripts/e2e-phase7.mjs`.
 
+## Updates and links
+`update_commands.rs`: `check_update`, `install_update` (refuses while jobs or live sessions run) and `open_link` (fixed Ko-fi and GitHub addresses only). The public key and feed address are in `tauri.conf.json`.
+
 ## Native integration
 - Custom title bar (window decorations off). Controls call the Tauri window API and are hidden in a plain browser.
 - Native folder dialog through `@tauri-apps/plugin-dialog` (`lib/native.ts`). In a browser it explains it is desktop only.

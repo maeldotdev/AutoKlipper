@@ -252,7 +252,7 @@ export function CaptionStudio() {
               ) : null}
               <Button onClick={() => fileRef.current?.click()}>
                 <Upload size={15} />
-                {video ? 'Change video' : 'Load test video'}
+                {video ? 'Change video' : IS_MOCK_BACKEND ? 'Load test video' : 'Preview over a video'}
               </Button>
             </div>
           </div>

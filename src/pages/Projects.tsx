@@ -8,7 +8,7 @@ import { ConfirmDialog } from '@/components/ui/Dialog'
 import { Badge, EmptyState, Skeleton } from '@/components/ui/Display'
 import { Input } from '@/components/ui/Input'
 import { PLATFORMS, PROJECT_STATUS } from '@/lib/labels'
-import { fmtBytes, fmtDuration, fmtRelative } from '@/lib/utils'
+import { fmtBytes, fmtDuration, fmtRelative, shortSource } from '@/lib/utils'
 import { useLibrary } from '@/stores/library'
 import { toast } from '@/stores/ui'
 import type { Project, ProjectStatus } from '@/types'
@@ -75,7 +75,7 @@ export function Projects() {
                 <Thumb hue={p.hue} duration={p.duration} />
                 <div className="p-3.5 pb-2">
                   <p className="truncate text-section font-semibold">{p.title}</p>
-                  <p className="mt-1 flex items-center gap-2 text-label text-t3"><PlatformMark id={p.platform} size={18} /><span className="truncate">{p.sourceLabel}</span></p>
+                  <p className="mt-1 flex items-center gap-2 text-label text-t3"><PlatformMark id={p.platform} size={18} /><span className="truncate" title={p.sourceLabel}>{shortSource(p.sourceLabel)}</span></p>
                 </div>
               </button>
               <div className="flex items-center gap-2 px-3.5 pb-3.5 pt-1">

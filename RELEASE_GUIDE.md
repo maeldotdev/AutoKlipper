@@ -94,4 +94,17 @@ Open source may qualify for free signing from [SignPath Foundation](https://sign
 
 **Clean PC test.** Windows Sandbox is not turned on here. To use it: Windows Features, "Windows Sandbox", restart, then run the installer inside it. Windows 10 needs a Windows 10 machine or virtual machine.
 
+## 7. Updates
+
+Installing a newer version over the old one keeps your library. Installed apps also check GitHub for updates.
+
+**The update key** is in `F:\AutoKlipper-keys`: `updater.key` (private), `updater.password.txt`, `updater.key.pub`.
+Copy that folder to a second safe place. **If you lose it, installed apps can never be updated again.** Anyone who has it can sign updates your users will accept, so never commit or share it.
+
+**Once, after publishing the repository**, add two secrets on GitHub (Settings, Secrets and variables, Actions):
+`TAURI_SIGNING_PRIVATE_KEY` (the whole content of `updater.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (content of `updater.password.txt`).
+
+**For each new version:** raise the version in `src-tauri/tauri.conf.json` and `package.json`, commit, push a tag such as `v0.2.0`, then open the draft release and press Publish.
+
+Version 0.1.0 builds made before the updater existed need one manual install.
 

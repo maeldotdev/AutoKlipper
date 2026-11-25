@@ -47,6 +47,16 @@ export function fmtBytes(b: number): string {
   return `${v.toFixed(v >= 100 ? 0 : 1)} ${units[i]}`
 }
 
+/** A readable source: the site name for a link, the file name for a path. */
+export function shortSource(label: string): string {
+  try {
+    if (/^https?:/i.test(label)) return new URL(label).hostname.replace(/^www\./, '')
+  } catch {
+    /* not a valid address: fall through */
+  }
+  return (label.split(/[\\/]/).filter(Boolean).pop() ?? label).replace(/^www\./, '')
+}
+
 export function fmtRelative(iso: string, now = Date.now()): string {
   const diff = Math.round((now - new Date(iso).getTime()) / 1000)
   if (diff < 60) return 'Just now'

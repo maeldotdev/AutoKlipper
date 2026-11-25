@@ -1,4 +1,7 @@
-# Builds the Windows installer from a version tag and puts it, with its SHA-256, on a DRAFT release.
+# Builds the Windows installer from a version tag and puts it, with its SHA-256 and the signed update
+# feed, on a DRAFT release. Installed apps see the update only after the draft is published.
+#
+# Before tagging, raise "version" in src-tauri/tauri.conf.json and package.json.
 # Nothing is public until you open the draft on GitHub and press Publish.
 #
 #   git tag v0.1.0
@@ -37,7 +40,17 @@ jobs:
       - run: rustup toolchain install stable --profile minimal
       - run: npm ci
       - run: npm run notices
-      - run: npx tauri build -- --locked
+      # The update key signs the installer so installed apps accept it. Without these two
+      # repository secrets the build stops here instead of publishing an update nobody can verify.
+      - name: Build and sign
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { throw 'Add the TAURI_SIGNING_PRIVATE_KEY repository secret.' }
+          [IO.File]::WriteAllText("$PWD/ci.json", '{"bundle":{"createUpdaterArtifacts":true}}')
+          npx tauri build --config ci.json -- --locked
 
       - name: Checksum
         shell: pwsh
@@ -47,6 +60,20 @@ jobs:
           $lines = Get-ChildItem dist-release/*.exe | ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" }
           [IO.File]::WriteAllText("$PWD/dist-release/SHA256SUMS.txt", ($lines -join "`n") + "`n")
           Get-Content dist-release/SHA256SUMS.txt
+
+      - name: Update feed
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist-release/*-setup.exe | Select-Object -First 1
+          $sig = Get-Content "src-tauri/target/release/bundle/nsis/$($setup.Name).sig" -Raw
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $feed = [ordered]@{
+            version = $version
+            notes = "AutoKlipper $version. Your projects and settings are kept."
+            pub_date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            platforms = @{ 'windows-x86_64' = @{ signature = $sig.Trim(); url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/$($setup.Name)" } }
+          }
+          [IO.File]::WriteAllText("$PWD/dist-release/latest.json", ($feed | ConvertTo-Json -Depth 5))
 
       - name: Draft release
         shell: pwsh

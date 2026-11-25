@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Code2, Heart, PanelLeftClose, PanelLeftOpen, type LucideIcon } from 'lucide-react'
+import { openLink, type OutsideLink } from '@/lib/links'
 import { NAV_BOTTOM, NAV_MAIN, type NavItem } from '@/app/routes'
 import { Logo } from '@/components/Logo'
 import { Tip } from '@/components/ui/Tooltip'
@@ -47,6 +48,22 @@ function Item({ item, collapsed, index }: { item: NavItem; collapsed: boolean; i
   )
 }
 
+/** Leaves the app: opens in the user's own browser. */
+function LinkItem({ which, label, icon: Icon, collapsed }: { which: OutsideLink; label: string; icon: LucideIcon; collapsed: boolean }) {
+  const button = (
+    <button
+      type="button"
+      onClick={() => openLink(which)}
+      aria-label={`${label}, opens in your browser`}
+      className={cn('no-drag flex h-9 items-center gap-3 rounded-md px-3 text-body text-t2 transition-colors duration-150 hover:bg-s2 hover:text-t1', collapsed && 'justify-center px-0')}
+    >
+      <Icon size={18} />
+      {collapsed ? null : <span className="truncate">{label}</span>}
+    </button>
+  )
+  return collapsed ? <Tip label={label} side="right">{button}</Tip> : button
+}
+
 export function Sidebar() {
   const collapsed = useSettings((s) => s.sidebarCollapsed)
   const set = useSettings((s) => s.set)
@@ -74,6 +91,8 @@ export function Sidebar() {
             <p className="mt-0.5 text-meta text-t3">Sample data only. No video is processed yet.</p>
           </div>
         )}
+        <LinkItem which="kofi" label="Support on Ko-fi" icon={Heart} collapsed={collapsed} />
+        <LinkItem which="github" label="GitHub" icon={Code2} collapsed={collapsed} />
         <Item item={NAV_BOTTOM} collapsed={collapsed} index={9} />
         <Tip label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right" kbd="Ctrl B">
           <button
