@@ -17,7 +17,7 @@ Checked 2026-11-25. This is not legal advice. Prices and terms change, so open t
 | Whisper models (Systran conversions) | Speech to text | Free | Listed as MIT; confirm on each model page |
 | sherpa-onnx | Speaker detection | Free | Apache-2.0 |
 | pyannote segmentation 3.0 model | Speaker detection | Free | MIT |
-| NeMo TitaNet-small model | Speaker detection | Free to download | **Not confirmed.** See section 5 |
+| NeMo TitaNet-small model | Speaker detection | Free | Apache-2.0 (NeMo Toolkit licence). See section 5 |
 | OpenCV, YuNet face model | Face tracking | Free | Apache-2.0; YuNet is listed as MIT |
 | Ollama (optional) | Second opinion on highlights | Free on your PC | MIT; each model has its own licence |
 | NSIS | Builds the installer | Free | zlib |
@@ -82,7 +82,7 @@ Open source may qualify for free signing from [SignPath Foundation](https://sign
 
 - **Platform terms.** [YouTube's terms](https://www.youtube.com/t/terms) do not allow downloading unless YouTube allows it or you have written permission. Twitch, Kick, TikTok and Facebook have their own rules. Owning the rights to a video does not always cancel the platform's rule. Safest: your own files, or content you have written permission for. A tool that downloads from these sites can also be refused by app stores or draw complaints.
 - **Copyright.** Posting clips of other people's videos can lead to strikes or claims, even with credit.
-- **TitaNet-small licence.** NVIDIA's page points to the NeMo toolkit licence and I could not confirm more. Read the [model page](https://catalog.ngc.nvidia.com/orgs/nvidia/nemo/models/titanet_small) before a public release, or drop speaker detection.
+- **TitaNet-small licence: settled (checked 2026-11-26).** The [model page](https://catalog.ngc.nvidia.com/orgs/nvidia/nemo/models/titanet_small) says use is covered by the NeMo Toolkit licence and that downloading it means accepting it. That [licence](https://github.com/NVIDIA-NeMo/Speech/blob/main/LICENSE) is Apache-2.0. The app downloads an ONNX copy from the sherpa-onnx project; keep the credit to NVIDIA NeMo.
 - **H.264 patents.** Free software licences do not include patent rights. The pool lists [no royalty for the first 100,000 units a year](https://www.via-la.com/licensing-2/avc-h-264/avc-h-264-license-fees). Ask a lawyer if you sell at scale.
 - **Selling.** The libraries above allow commercial use if you keep their notices. Selling a downloader for platform video raises the legal risk a lot.
 
@@ -94,5 +94,4 @@ Open source may qualify for free signing from [SignPath Foundation](https://sign
 
 **Clean PC test.** Windows Sandbox is not turned on here. To use it: Windows Features, "Windows Sandbox", restart, then run the installer inside it. Windows 10 needs a Windows 10 machine or virtual machine.
 
-**Speaker model.** The TitaNet-small licence is still unconfirmed. A replacement with an Apache-2.0 label is the 3D-Speaker CAM++ model; switching needs a download and a test.
 

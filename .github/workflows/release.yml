@@ -1,0 +1,57 @@
+# Builds the Windows installer from a version tag and puts it, with its SHA-256, on a DRAFT release.
+# Nothing is public until you open the draft on GitHub and press Publish.
+#
+#   git tag v0.1.0
+#   git push origin v0.1.0
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write # to create the draft release
+    steps:
+      # Actions are pinned to a commit, so a moved tag cannot change what runs here.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Tag matches the app version
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw "Tag $env:GITHUB_REF_NAME does not match version $version" }
+
+      - run: rustup toolchain install stable --profile minimal
+      - run: npm ci
+      - run: npm run notices
+      - run: npx tauri build -- --locked
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist-release | Out-Null
+          Copy-Item src-tauri/target/release/bundle/nsis/*-setup.exe dist-release
+          $lines = Get-ChildItem dist-release/*.exe | ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" }
+          [IO.File]::WriteAllText("$PWD/dist-release/SHA256SUMS.txt", ($lines -join "`n") + "`n")
+          Get-Content dist-release/SHA256SUMS.txt
+
+      - name: Draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = "Unsigned installer: Windows may show 'Unknown publisher'. Check the download against SHA256SUMS.txt."
+          gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist-release/*).FullName --draft --verify-tag --title "AutoKlipper $env:GITHUB_REF_NAME" --notes $notes
