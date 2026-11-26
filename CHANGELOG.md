@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.1
+- AI post captions: hashtags are no longer glued into one long word, and the caption is written in the video's language.
+
 ## 0.3.0
 - Every new clip gets a post text: caption, hashtags and credit. Your Ollama model writes it when it is running; otherwise it comes from the words in the clip.
 - Windows pop-ups when clips are ready, an export ends or something fails. Clicking one opens AutoKlipper there.

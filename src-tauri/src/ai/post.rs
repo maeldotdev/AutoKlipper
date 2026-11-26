@@ -35,13 +35,27 @@ impl Config {
     }
 }
 
+/// One tag without its `#`. Several words are joined with capitals: "winning moment" is "WinningMoment".
+fn tag_word(t: &str) -> String {
+    let words: Vec<String> = t
+        .split_whitespace()
+        .map(|w| w.chars().filter(|c| c.is_alphanumeric() || *c == '_').collect::<String>())
+        .filter(|w| !w.is_empty())
+        .collect();
+    if words.len() < 2 {
+        return words.concat();
+    }
+    words.iter().map(|w| { let mut c = w.chars(); c.next().map(|f| f.to_uppercase().chain(c).collect::<String>()).unwrap_or_default() }).collect()
+}
+
 /// `#Tag` form, letters, digits and `_` only, no repeats, at most 12.
 pub fn hashtags<'a>(raw: impl Iterator<Item = &'a str>) -> Vec<String> {
     let mut seen: Vec<String> = Vec::new();
     let mut out = Vec::new();
-    for t in raw {
-        let word: String = t.chars().filter(|c| c.is_alphanumeric() || *c == '_').take(40).collect();
-        if word.is_empty() || seen.contains(&word.to_lowercase()) {
+    // A model may pack several tags into one item: "late game, winning moment".
+    for t in raw.flat_map(|t| t.split([',', ';', '#', '\n'])) {
+        let word = tag_word(t);
+        if word.is_empty() || word.chars().count() > 30 || seen.contains(&word.to_lowercase()) {
             continue;
         }
         seen.push(word.to_lowercase());
@@ -82,8 +96,8 @@ pub fn compose(caption: &str, content_tags: &[String], my_tags: &str, credit: Op
 }
 
 /// Never fails: a model that is missing or answers badly leaves the plain version.
-pub fn write(cfg: &Config, model: Option<&str>, title: &str, said: &str, credit: Option<&str>) -> String {
-    let answer = model.and_then(|m| match ollama::post(&cfg.base, m, title, said) {
+pub fn write(cfg: &Config, model: Option<&str>, title: &str, said: &str, language: &str, credit: Option<&str>) -> String {
+    let answer = model.and_then(|m| match ollama::post(&cfg.base, m, title, said, language) {
         Ok(a) => Some(a),
         Err(e) => {
             tracing::warn!("post caption from the model failed, using the words said: {e}");
@@ -107,22 +121,26 @@ mod tests {
     #[test]
     fn hashtags_are_cleaned_and_not_repeated() {
         let t = hashtags(["gaming", "#Gaming", "so good!", "", "#", "viral"].into_iter());
-        assert_eq!(t, ["#gaming", "#sogood", "#viral"]);
+        assert_eq!(t, ["#gaming", "#SoGood", "#viral"]);
+        // What gemma3 really sent: everything in one item.
+        let packed = hashtags(["Late game victory, incredible teamwork, winning moment"].into_iter());
+        assert_eq!(packed, ["#LateGameVictory", "#IncredibleTeamwork", "#WinningMoment"]);
+        assert!(hashtags(["x".repeat(31).as_str()].into_iter()).is_empty());
         assert_eq!(hashtags((0..30).map(|_| "a").chain(["b"])), ["#a", "#b"]);
     }
 
     #[test]
     fn without_a_model_the_words_said_become_the_caption() {
-        let out = write(&cfg("http://127.0.0.1:9".into()), None, "Title", "I did not expect this at all. Then more.", Some("Some Channel"));
+        let out = write(&cfg("http://127.0.0.1:9".into()), None, "Title", "I did not expect this at all. Then more.", "en", Some("Some Channel"));
         assert_eq!(out, "I did not expect this at all.\n\n#fyp #Viral\n\nCredit: Some Channel");
-        assert_eq!(write(&cfg(String::new()), None, "Only a title", "  ", None), "Only a title\n\n#fyp #Viral");
+        assert_eq!(write(&cfg(String::new()), None, "Only a title", "  ", "", None), "Only a title\n\n#fyp #Viral");
         assert!(fallback_caption("t", &"word ".repeat(80)).ends_with("word..."));
     }
 
     #[test]
     fn an_unreachable_model_falls_back() {
         assert!(cfg("http://127.0.0.1:9".into()).pick_model().is_none());
-        let out = write(&cfg("http://127.0.0.1:9".into()), Some("x"), "Title", "", None);
+        let out = write(&cfg("http://127.0.0.1:9".into()), Some("x"), "Title", "", "en", None);
         assert_eq!(out, "Title\n\n#fyp #Viral");
     }
 
@@ -158,6 +176,6 @@ mod tests {
         let c = cfg(base);
         let model = c.pick_model();
         assert_eq!(model.as_deref(), Some("chosen"));
-        assert_eq!(write(&c, model.as_deref(), "T", "words", None), "Wait for it\n\n#gaming #clutch #fyp #Viral");
+        assert_eq!(write(&c, model.as_deref(), "T", "words", "en", None), "Wait for it\n\n#gaming #clutch #fyp #Viral");
     }
 }

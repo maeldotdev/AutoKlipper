@@ -12,15 +12,15 @@ use crate::state::AppState;
 
 /// Write and save one clip's post. The database is not held while the model thinks.
 fn write_one(state: &AppState, cfg: &post::Config, model: Option<&str>, clip_id: &str) -> AppResult<Clip> {
-    let (title, said, credit) = {
+    let (title, said, language, credit) = {
         let db = state.db()?;
         let clip = repo::get_clip_pub(&db, clip_id)?;
         let project = repo::get_project(&db, &clip.project_id)?;
-        let words = repo::get_transcript(&db, &clip.project_id)?.map(|(_, _, all)| transcript::slice(&all, clip.start_sec, clip.end_sec)).unwrap_or_default();
+        let (language, words) = repo::get_transcript(&db, &clip.project_id)?.map(|(lang, _, all)| (lang, transcript::slice(&all, clip.start_sec, clip.end_sec))).unwrap_or_default();
         let said: Vec<&str> = words.iter().flat_map(|s| &s.words).map(|w| w.text.trim()).collect();
-        (clip.title, said.join(" "), project.uploader)
+        (clip.title, said.join(" "), language, project.uploader)
     };
-    let text = post::write(cfg, model, &title, &said, credit.as_deref());
+    let text = post::write(cfg, model, &title, &said, &language, credit.as_deref());
     let text: String = text.chars().take(3000).collect();
     repo::update_clip(&*state.db()?, clip_id, ClipPatch { post: Some(text), ..Default::default() })
 }
