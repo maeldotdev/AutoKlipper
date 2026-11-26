@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.2
 - A Stop button wherever a job shows its progress: downloads, transcription, clip finding, exports and AI setup.
 
 ## 0.3.1
