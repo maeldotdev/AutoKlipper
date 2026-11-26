@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 - Tagalog added to the spoken language list.
 - Gaming layout: a button swaps the game and the camera.
 - Caption position buttons: Top, Middle, Bottom.
