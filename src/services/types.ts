@@ -1,6 +1,6 @@
 import type { CaptionSegment, CaptionStyle, Clip, Job, LiveStream, Project } from '@/types'
 
-export type ClipPatch = Partial<Pick<Clip, 'title' | 'startSec' | 'endSec' | 'aspect' | 'target' | 'captions' | 'exportStatus' | 'cropX' | 'zoom' | 'track'>>
+export type ClipPatch = Partial<Pick<Clip, 'title' | 'startSec' | 'endSec' | 'aspect' | 'target' | 'captions' | 'exportStatus' | 'cropX' | 'zoom' | 'track' | 'split'>>
 
 export interface AppPathsInfo {
   root: string
@@ -165,6 +165,8 @@ export interface AiService {
   ollamaModels(): Promise<string[]>
   setupFace(): Promise<string>
   trackFaces(clipId: string): Promise<[number, number][]>
+  /** A first guess at the camera overlay: x, y, width, height. */
+  guessCamera(clipId: string): Promise<[number, number, number, number]>
 }
 
 export interface LiveRequest {

@@ -43,6 +43,7 @@ export const tauriAi: AiService = {
   ollamaModels: () => invoke<string[]>('ollama_models'),
   setupFace: () => invoke<string>('ai_setup_face'),
   trackFaces: (clipId) => invoke<[number, number][]>('track_faces', { clipId }),
+  guessCamera: (clipId) => invoke<[number, number, number, number]>('guess_camera', { clipId }),
 }
 
 export const tauriLive: LiveService = {

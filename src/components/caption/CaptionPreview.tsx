@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref, type RefObject } from 'react'
+import { SplitPicture, type FrameChange } from '@/components/editor/SplitLayout'
 import { ASPECT_DIMS } from '@/lib/labels'
 import { clamp } from '@/lib/utils'
 import { FONT_STACKS } from '@/theme/captionPresets'
 import { usePlayhead } from '@/stores/playhead'
 import { centreAt, cropPosition, type TrackPoint } from '@/lib/reframe'
-import type { AspectRatio, CaptionSegment, CaptionStyle, CaptionWord } from '@/types'
+import type { AspectRatio, CaptionSegment, CaptionStyle, CaptionWord, Split } from '@/types'
 
 const hexToRgba = (hex: string, a: number) => {
   const n = parseInt(hex.replace('#', ''), 16)
@@ -222,7 +223,7 @@ export function Frame({
 
 /** Full preview: backdrop (loaded video or placeholder) + live caption layer. */
 export function PreviewStage({
-  aspect, segments, style, videoSrc, videoRef, cropX = 50, zoom = 1, track, trackOffset = 0, hue = 222, onWordClick, staticTime,
+  aspect, segments, style, videoSrc, videoRef, cropX = 50, zoom = 1, track, trackOffset = 0, split, onFrame, hue = 222, onWordClick, staticTime,
 }: {
   aspect: AspectRatio
   segments: CaptionSegment[]
@@ -234,6 +235,10 @@ export function PreviewStage({
   /** Face path and the source time at playhead zero. */
   track?: TrackPoint[] | null
   trackOffset?: number
+  /** Gaming layout. Used on vertical clips only. */
+  split?: Split | null
+  /** Lets the user drag the game and the camera in the gaming layout. */
+  onFrame?: (c: FrameChange) => void
   hue?: number
   onWordClick?: (segId: string, wordId: string) => void
   staticTime?: number
@@ -243,11 +248,17 @@ export function PreviewStage({
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null)
   const ratio = ASPECT_DIMS[aspect].w / ASPECT_DIMS[aspect].h
   const pos = track?.length && dims ? cropPosition(centreAt(track, trackOffset + time), dims.w, dims.h, ratio, zoom) : cropX / 100
+  const stacked = split && split.share > 0 && aspect === '9:16' ? split : null
+  const ownRef = useRef<HTMLVideoElement>(null)
+  const sourceRef = (videoRef as RefObject<HTMLVideoElement | null> | undefined) ?? ownRef
+  // Captions sit where the game and the camera meet, as in the export.
+  const captionStyle = stacked ? { ...style, posY: (1 - stacked.share) * 100 } : style
   return (
     <Frame aspect={aspect}>
       {videoSrc ? (
+        <>
         <video
-          ref={videoRef}
+          ref={sourceRef}
           src={videoSrc}
           playsInline
           muted={false}
@@ -256,6 +267,8 @@ export function PreviewStage({
           // Zoom by growing the element, then shift it: the visible part equals FFmpeg's crop window.
           style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%`, left: `${-(zoom - 1) * pos * 100}%`, top: `${-(zoom - 1) * 50}%`, objectPosition: `${pos * 100}% 50%` }}
         />
+        {stacked ? <SplitPicture videoRef={sourceRef} split={stacked} cropX={cropX} zoom={zoom} onChange={onFrame} /> : null}
+        </>
       ) : (
         <div className="thumb absolute inset-0" style={{ ['--h' as string]: hue } as CSSProperties}>
           <div className="absolute inset-0 flex items-start justify-center pt-[6%]">
@@ -263,7 +276,7 @@ export function PreviewStage({
           </div>
         </div>
       )}
-      <CaptionLayer segments={segments} style={style} time={time} onWordClick={onWordClick} />
+      <CaptionLayer segments={segments} style={captionStyle} time={time} onWordClick={onWordClick} />
     </Frame>
   )
 }

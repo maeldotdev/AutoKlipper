@@ -25,7 +25,9 @@ import { useLibrary } from '@/stores/library'
 import { useSettings } from '@/stores/settings'
 import { toast } from '@/stores/ui'
 import { BUILT_IN_PRESETS } from '@/theme/captionPresets'
-import type { AspectRatio } from '@/types'
+import type { AspectRatio, Split } from '@/types'
+import { CameraBox } from '@/components/editor/SplitLayout'
+import { DEFAULT_SPLIT } from '@/lib/split'
 
 export function ClipEditor() {
   const { clipId } = useParams()
@@ -89,6 +91,9 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
   const [cropX, setCropX] = useState(clip.cropX ?? 50)
   const [zoom, setZoom] = useState(clip.zoom ?? 1)
   const [tracking, setTracking] = useState(false)
+  const [split, setSplit] = useState<Split | null>(clip.split?.share ? clip.split : null)
+  const [guessing, setGuessing] = useState(false)
+  const gaming = !!split && clip.aspect === '9:16'
   const [pad, setPad] = useState(15)
   const [peaks, setPeaks] = useState<number[] | null>(null)
   const splitClip = useLibrary((s) => s.splitClip)
@@ -100,6 +105,13 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
     const t = setTimeout(() => updateClip(clip.id, { cropX, zoom }), 400)
     return () => clearTimeout(t)
   }, [cropX, zoom, clip.id, clip.cropX, clip.zoom, updateClip])
+  // The camera box is saved shortly after dragging stops. A share of 0 switches the layout off.
+  useEffect(() => {
+    const saved = clip.split?.share ? clip.split : null
+    if (JSON.stringify(split) === JSON.stringify(saved)) return
+    const t = setTimeout(() => updateClip(clip.id, { split: split ?? { ...DEFAULT_SPLIT, share: 0 } }), 400)
+    return () => clearTimeout(t)
+  }, [split, clip.id, clip.split, updateClip])
   const [selected, setSelected] = useState<{ segId: string; wordId: string } | null>(null)
   const [quality, setQuality] = useState('1080')
   const [fps, setFps] = useState('30')
@@ -128,7 +140,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
   useSpaceToggle()
 
   const doExport = () => {
-    updateClip(clip.id, { cropX, zoom })
+    updateClip(clip.id, { cropX, zoom, ...(split ? { split } : {}) })
     exportClips([clip.id], { resolution: Number(quality), fps: Number(fps), burnCaptions: burn && real && captionsOn, writeSrt: srt && real && captionsOn })
     if (IS_MOCK_BACKEND) toast({ kind: 'info', title: 'Simulated export started', body: 'No file is written in the browser preview.' })
   }
@@ -146,7 +158,27 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
     }
   }
 
-  const split = () => {
+  const guessCamera = async () => {
+    setGuessing(true)
+    try {
+      const [x, y, w, h] = await api.ai.guessCamera(clip.id)
+      setSplit((s) => ({ ...(s ?? DEFAULT_SPLIT), x, y, w, h })) // CameraBox reshapes it around its centre
+      toast({ kind: 'success', title: 'Camera box placed', body: 'Check it and drag it if needed.' })
+    } catch (e) {
+      toast({ kind: 'warning', title: 'Camera not found', body: String(e) })
+    } finally {
+      setGuessing(false)
+    }
+  }
+
+  const setGaming = (on: boolean) => {
+    if (!on) return setSplit(null)
+    if (clip.aspect !== '9:16') updateClip(clip.id, { aspect: '9:16' })
+    setSplit(DEFAULT_SPLIT)
+    if (!IS_MOCK_BACKEND && faceReady && sourcePath) void guessCamera()
+  }
+
+  const splitInTwo = () => {
     const at = clip.startSec + usePlayhead.getState().time
     if (splitClip(clip.id, at)) toast({ kind: 'success', title: 'Clip split in two', body: 'The second part is a new clip in My Clips.' })
     else toast({ kind: 'warning', title: 'Move the playhead first', body: 'Each part needs at least one second.' })
@@ -165,7 +197,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
         usePlayhead.getState().setTime(0) // the same moment is now the start
       }
       else if (k === 'o' && at >= clip.startSec + 1) updateClip(clip.id, { endSec: at })
-      else if (k === 's') split()
+      else if (k === 's') splitInTwo()
       else if (e.key === 'ArrowLeft') usePlayhead.getState().seek(t - (e.shiftKey ? 1 : 1 / 30))
       else if (e.key === 'ArrowRight') usePlayhead.getState().seek(t + (e.shiftKey ? 1 : 1 / 30))
       else return
@@ -209,7 +241,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
         <div className="flex min-h-0 flex-col gap-3">
           <section className="panel flex min-h-0 flex-1 flex-col overflow-hidden" aria-label="Preview">
             <div className="min-h-0 flex-1 bg-app/60 p-4">
-              <PreviewStage aspect={clip.aspect} segments={captionsOn ? segments : []} style={style} videoSrc={video?.src} videoRef={videoRef} cropX={cropX} zoom={zoom} track={clip.track} trackOffset={clip.startSec} hue={clip.hue} onWordClick={(segId, wordId) => { setSelected({ segId, wordId }); setTab('captions') }} />
+              <PreviewStage aspect={clip.aspect} segments={captionsOn ? segments : []} style={style} videoSrc={video?.src} videoRef={videoRef} cropX={cropX} zoom={zoom} split={split} onFrame={(c) => { if (c.split) setSplit(c.split); if (c.cropX !== undefined) setCropX(c.cropX) }} track={clip.track} trackOffset={clip.startSec} hue={clip.hue} onWordClick={(segId, wordId) => { setSelected({ segId, wordId }); setTab('captions') }} />
             </div>
             <div className="shrink-0 border-t border-line px-4 py-3"><Transport /></div>
           </section>
@@ -219,7 +251,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
               <h2 className="text-label font-semibold">Timeline</h2>
               <span className="mr-auto ml-3 truncate text-meta text-t3">Drag the handles to trim. I start, O end, S split, arrows step.{IS_MOCK_BACKEND ? ' Captions use the 18 s sample transcript.' : ''}</span>
               <div className="flex items-center gap-2">
-                <Button size="sm" onClick={split}><Scissors size={13} />Split here</Button>
+                <Button size="sm" onClick={splitInTwo}><Scissors size={13} />Split here</Button>
                 <Segmented label="Timeline zoom" value={String(pad)} onChange={(v) => setPad(Number(v))} options={[{ value: '5', label: 'Close' }, { value: '15', label: 'Normal' }, { value: '60', label: 'Wide' }]} />
               </div>
             </div>
@@ -264,13 +296,43 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
                     <p className="mt-1.5 text-meta text-t3">{ASPECT_DIMS[clip.aspect].px}</p>
                   </div>
                   <div>
-                    <div className="mb-2 flex justify-between text-label"><span className="font-medium text-t2">Crop position</span><span className="font-mono">{cropX}%</span></div>
-                    {tracked ? <p className="text-meta text-t3">The face path sets the position.</p> : <Slider label="Crop position" min={0} max={100} value={[cropX]} onChange={([v]) => setCropX(v)} />}
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-body font-medium">Gaming layout</span>
+                      <Switch label="Gaming layout" checked={gaming} onChange={setGaming} />
+                    </div>
+                    <p className="mt-1.5 text-meta text-t3">Game on top, camera below, for 9:16 clips. Captions sit between them. Drag either picture in the preview to move it.</p>
+                  </div>
+                  {gaming && split ? (
+                    <>
+                      <div>
+                        <p className="mb-2 text-label font-medium text-t2">Camera box</p>
+                        <CameraBox videoRef={videoRef} split={split} onChange={setSplit} />
+                        <Button className="mt-2 w-full" loading={guessing} disabled={IS_MOCK_BACKEND || !faceReady || !sourcePath} onClick={() => void guessCamera()}>
+                          {guessing ? null : <UserRound size={15} />}{guessing ? 'Looking for the face' : 'Guess from the face'}
+                        </Button>
+                        <p className="mt-1.5 text-meta text-t3">{!faceReady && !IS_MOCK_BACKEND ? 'Set up face tracking in Settings, AI to guess the box. You can still drag it.' : 'Drag the box onto your camera; it snaps to the edges and middle. A smaller box zooms in.'}</p>
+                      </div>
+                      <div>
+                        <div className="mb-2 flex justify-between text-label"><span className="font-medium text-t2">Camera height</span><span className="font-mono">{Math.round(split.share * 100)}%</span></div>
+                        <Slider label="Camera height" min={20} max={50} step={1} value={[Math.round(split.share * 100)]} onChange={([v]) => setSplit({ ...split, share: v / 100 })} />
+                      </div>
+                      {zoom > 1 ? (
+                        <div>
+                          <div className="mb-2 flex justify-between text-label"><span className="font-medium text-t2">Game up and down</span><span className="font-mono">{Math.round((split.gy ?? 0.5) * 100)}%</span></div>
+                          <Slider label="Game up and down" min={0} max={100} step={1} value={[Math.round((split.gy ?? 0.5) * 100)]} onChange={([v]) => setSplit({ ...split, gy: v / 100 })} />
+                        </div>
+                      ) : null}
+                    </>
+                  ) : null}
+                  <div>
+                    <div className="mb-2 flex justify-between text-label"><span className="font-medium text-t2">{gaming ? 'Game position' : 'Crop position'}</span><span className="font-mono">{cropX}%</span></div>
+                    {tracked && !gaming ? <p className="text-meta text-t3">The face path sets the position.</p> : <Slider label="Crop position" min={0} max={100} value={[cropX]} onChange={([v]) => setCropX(v)} />}
                   </div>
                   <div>
-                    <div className="mb-2 flex justify-between text-label"><span className="font-medium text-t2">Zoom</span><span className="font-mono">{zoom.toFixed(2)}x</span></div>
+                    <div className="mb-2 flex justify-between text-label"><span className="font-medium text-t2">{gaming ? 'Game zoom' : 'Zoom'}</span><span className="font-mono">{zoom.toFixed(2)}x</span></div>
                     <Slider label="Zoom" min={1} max={2} step={0.05} value={[zoom]} onChange={([v]) => setZoom(v)} />
                   </div>
+                  {gaming ? null : (
                   <div>
                     <Button className="w-full" loading={tracking} disabled={IS_MOCK_BACKEND || !faceReady || !sourcePath} onClick={() => void trackFaces()}>
                       {tracking ? null : <UserRound size={15} />}{tracking ? 'Looking for the face' : tracked ? 'Track the face again' : 'Follow the face'}
@@ -280,6 +342,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
                       {IS_MOCK_BACKEND ? 'Face tracking runs in the desktop app.' : !faceReady ? 'Set up face tracking in Settings, AI.' : 'Follows the biggest, most steady face. It does not know who is speaking.'}
                     </p>
                   </div>
+                  )}
                   {!video ? <p className="text-meta text-t3">Crop and zoom act on the footage. {IS_MOCK_BACKEND ? 'Load a test video to see them move.' : 'This clip has no source video on this PC.'}</p> : null}
                 </div>
               </TabPanel>

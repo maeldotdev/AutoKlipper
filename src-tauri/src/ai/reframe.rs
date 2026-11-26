@@ -109,6 +109,24 @@ pub fn expression(path: &[Point], clip_start: f64, src_w: u32, src_h: u32, targe
     Some(expr)
 }
 
+/// A webcam overlay is roughly three faces wide and two and a half tall, with the face a bit above
+/// its middle. Uses the typical (median) face so a stray detection does not move the box.
+pub fn camera_box(faces: &[[f64; 4]]) -> Option<[f64; 4]> {
+    if faces.is_empty() {
+        return None;
+    }
+    let median = |i: usize| {
+        let mut v: Vec<f64> = faces.iter().map(|f| f[i]).collect();
+        v.sort_by(f64::total_cmp);
+        v[v.len() / 2]
+    };
+    let (cx, cy, fw, fh) = (median(0), median(1), median(2), median(3));
+    let (w, h) = ((fw * 3.0).clamp(0.08, 1.0), (fh * 2.4).clamp(0.08, 1.0));
+    let x = (cx - w / 2.0).clamp(0.0, 1.0 - w);
+    let y = (cy - h * 0.45).clamp(0.0, 1.0 - h);
+    Some([x, y, w, h])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -166,5 +184,17 @@ mod tests {
         assert!(e.contains("(t-0.000)/2.000"), "{e}");
         assert!(expression(&[], 0.0, 1, 1, 1.0, 1.0).is_none());
         assert_eq!(expression(&[[5.0, 0.5]], 0.0, 1280, 720, 0.5625, 1.0).unwrap(), "0.5000");
+    }
+
+    #[test]
+    fn camera_box_surrounds_the_usual_face_and_stays_inside() {
+        use super::camera_box;
+        assert_eq!(camera_box(&[]), None);
+        // A small face near the bottom left corner, with one stray detection.
+        let faces = [[0.1, 0.85, 0.06, 0.12], [0.1, 0.85, 0.06, 0.12], [0.8, 0.2, 0.3, 0.5]];
+        let [x, y, w, h] = camera_box(&faces).unwrap();
+        assert!(x >= 0.0 && y >= 0.0 && x + w <= 1.0 && y + h <= 1.0);
+        assert!(x < 0.1 && x + w > 0.1 && y < 0.85 && y + h > 0.85, "{x} {y} {w} {h}");
+        assert!((w - 0.18).abs() < 1e-9 && (h - 0.288).abs() < 1e-9);
     }
 }

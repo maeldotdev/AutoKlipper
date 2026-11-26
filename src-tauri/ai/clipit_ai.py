@@ -155,10 +155,14 @@ def cmd_track(args):
             near = 1.0 if previous is None else max(0.15, 1.0 - 2.0 * abs(cx - previous))
             weight = area * near * float(f[14])
             if best is None or weight > best[0]:
-                best = (weight, cx, area)
+                box = (float(f[1] + f[3] / 2) / size[1], float(f[2]) / size[0], float(f[3]) / size[1])
+                best = (weight, cx, area, box)
         if best:
             previous = best[1]
-        samples.append({"t": round(at, 3), "cx": round(best[1], 4) if best else None})
+        sample = {"t": round(at, 3), "cx": round(best[1], 4) if best else None}
+        if best:
+            sample.update(zip(("cy", "w", "h"), (round(v, 4) for v in best[3])))
+        samples.append(sample)
         progress((at - args.start) / span * 99)
     video.release()
     with open(args.out, "w", encoding="utf-8") as f:

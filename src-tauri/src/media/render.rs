@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::path::Path;
 
 use super::process::{self, Outcome};
+use crate::db::models::Split;
 use crate::error::{invalid, AppResult};
 
 pub use super::process::Running;
@@ -35,6 +36,8 @@ pub struct RenderOptions {
     pub zoom: f64,
     /// An expression in `t` giving the position 0..1. Replaces `crop_x` when a face path exists.
     pub x_expr: Option<String>,
+    /// Game on top, camera below.
+    pub split: Option<Split>,
 }
 
 impl RenderOptions {
@@ -69,9 +72,32 @@ pub fn target_size(aspect: &str, short: u32) -> AppResult<(u32, u32)> {
     })
 }
 
+/// Output heights of the game (top) and camera (bottom) halves of a gaming layout.
+pub fn split_heights(height: u32, share: f64) -> (u32, u32) {
+    let face = even(height as f64 * share);
+    (height - face, face)
+}
+
+/// Game cropped to its half (positioned by `crop_x`, narrowed by `zoom`) stacked above the camera box.
+fn split_graph(w: u32, h: u32, s: &Split, o: &RenderOptions) -> String {
+    let (game, face) = split_heights(h, s.share);
+    let r = w as f64 / game as f64;
+    let p = o.crop_x / 100.0;
+    format!(
+        "split=2[g0][c0];\
+         [g0]crop=w='min(iw,ih*{r:.6})/{z:.4}':h='min(ih,iw/{r:.6})/{z:.4}':x='(iw-out_w)*{p:.4}':y='(ih-out_h)*{gy:.4}',scale={w}:{game}:flags=lanczos,setsar=1[g];\
+         [c0]crop=w='iw*{cw:.6}':h='ih*{ch:.6}':x='iw*{cx:.6}':y='ih*{cy:.6}',scale={w}:{face}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{face},setsar=1[c];\
+         [g][c]vstack,fps={fps},format=yuv420p",
+        z = o.zoom, gy = s.gy, cx = s.x, cy = s.y, cw = s.w, ch = s.h, fps = o.fps
+    )
+}
+
 /// Crop the source to the target shape (positioned by `crop_x`, narrowed by `zoom`), then scale.
 pub fn filter_graph(aspect: &str, o: &RenderOptions) -> AppResult<String> {
     let (w, h) = target_size(aspect, o.resolution)?;
+    if let Some(s) = o.split.filter(|_| aspect == "9:16") {
+        return Ok(split_graph(w, h, &s, o));
+    }
     let r = w as f64 / h as f64;
     let z = o.zoom;
     let p = o.x_expr.clone().unwrap_or_else(|| format!("{:.4}", o.crop_x / 100.0));
@@ -152,7 +178,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn opts() -> RenderOptions {
-        RenderOptions { resolution: 1080, fps: 30, quality: Quality::Balanced, encoder: Encoder::X264, crop_x: 50.0, zoom: 1.0, x_expr: None }
+        RenderOptions { resolution: 1080, fps: 30, quality: Quality::Balanced, encoder: Encoder::X264, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None }
     }
 
     #[test]
@@ -244,6 +270,47 @@ mod tests {
         assert!((res.duration_sec - 3.0).abs() < 0.3, "cut length was {}", res.duration_sec);
         assert!(res.has_audio);
         assert_eq!(res.video_codec, "h264");
+    }
+
+    /// A blue "game" with a red "camera" in its bottom left corner: blue must end up on top, red below.
+    #[test]
+    fn real_ffmpeg_stacks_game_above_camera() {
+        let Some(tools) = ff::locate(None) else { return };
+        let dir = std::env::temp_dir().join(format!("clipit-split-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("src.mp4");
+        assert!(ff::command(&tools.ffmpeg)
+            .args(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:size=1280x720:rate=30",
+                   "-vf", "drawbox=x=0:y=432:w=384:h=288:color=red:t=fill", "-t", "2", "-pix_fmt", "yuv420p"])
+            .arg(&src)
+            .status()
+            .unwrap()
+            .success());
+        let mut o = opts();
+        o.resolution = 720;
+        o.crop_x = 100.0;
+        o.split = Some(Split { x: 0.0, y: 0.6, w: 0.3, h: 0.4, share: 0.35, gy: 0.5 });
+        let out = dir.join("split.mp4");
+        let args = build_args(&src, 0.0, 1.0, &out, "9:16", &o, None).unwrap();
+        run(&tools.ffmpeg, &args, 1.0, &Running::default(), |_| {}).unwrap();
+        let info = probe::probe(&tools, &out).unwrap();
+        assert_eq!((info.width, info.height), (720, 1280));
+        let pixel = |y: u32| {
+            ff::command(&tools.ffmpeg)
+                .args(["-hide_banner", "-loglevel", "error", "-ss", "0.5", "-i"])
+                .arg(&out)
+                .args(["-frames:v", "1", "-vf", &format!("crop=2:2:360:{y},format=rgb24"), "-f", "rawvideo", "-"])
+                .output()
+                .unwrap()
+                .stdout
+        };
+        let (game, face) = split_heights(1280, 0.35);
+        assert_eq!((game, face), (832, 448));
+        let (top, bottom) = (pixel(game / 2), pixel(game + face / 2));
+        assert!(top[2] > 180 && top[0] < 80, "top should be the blue game: {:?}", &top[..3]);
+        assert!(bottom[0] > 180 && bottom[2] < 80, "bottom should be the red camera: {:?}", &bottom[..3]);
+        // Other shapes ignore the layout.
+        assert!(!filter_graph("1:1", &o).unwrap().contains("vstack"));
     }
 
     #[test]

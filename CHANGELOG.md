@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3
+- Vertical clips can show the game on top and the camera below, with captions between them. Turn it on in the editor, Frame tab.
+- Project cards show a loading bar while processing.
+
 ## 0.1.2
 - Fixed the Ko-fi link.
 

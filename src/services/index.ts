@@ -65,6 +65,7 @@ const mockAi: AiService = {
   ollamaModels: unavailable,
   setupFace: unavailable,
   trackFaces: unavailable,
+  guessCamera: unavailable,
 }
 
 const mockLive: LiveService = {

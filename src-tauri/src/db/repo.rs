@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection, Row};
 
-use super::models::{check_project_status, Clip, ClipPatch, Job, Project};
+use super::models::{check_project_status, Clip, ClipPatch, Split, Job, Project};
 use crate::ai::transcript::Segment;
 use crate::error::{AppError, AppResult};
 
@@ -98,11 +98,12 @@ fn clip_row(r: &Row) -> rusqlite::Result<Clip> {
         crop_x: r.get(14)?,
         zoom: r.get(15)?,
         track: r.get::<_, Option<String>>(16)?.and_then(|t| serde_json::from_str(&t).ok()),
+        split: r.get::<_, Option<String>>(17)?.and_then(|t| serde_json::from_str(&t).ok()),
     })
 }
 
 const CLIP_COLS: &str =
-    "id, project_id, title, start_sec, end_sec, aspect, target, captions, export_status, score, hue, created_at, export_path, reason, crop_x, zoom, track";
+    "id, project_id, title, start_sec, end_sec, aspect, target, captions, export_status, score, hue, created_at, export_path, reason, crop_x, zoom, track, split";
 
 pub fn list_clips(c: &Connection) -> AppResult<Vec<Clip>> {
     let mut st = c.prepare(&format!("SELECT {CLIP_COLS} FROM clips ORDER BY created_at DESC, rowid DESC"))?;
@@ -112,6 +113,10 @@ pub fn list_clips(c: &Connection) -> AppResult<Vec<Clip>> {
 
 fn track_json(t: &Option<Vec<[f64; 2]>>) -> Option<String> {
     t.as_ref().and_then(|v| serde_json::to_string(v).ok())
+}
+
+fn split_json(s: &Option<Split>) -> Option<String> {
+    s.as_ref().and_then(|v| serde_json::to_string(v).ok())
 }
 
 fn get_clip(c: &Connection, id: &str) -> AppResult<Clip> {
@@ -130,8 +135,8 @@ pub fn insert_clips(c: &Connection, clips: &[Clip]) -> AppResult<()> {
     let tx = c.unchecked_transaction()?;
     for k in clips {
         tx.execute(
-            &format!("INSERT INTO clips ({CLIP_COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)"),
-            params![k.id, k.project_id, k.title, k.start_sec, k.end_sec, k.aspect, k.target, k.captions, k.export_status, k.score, k.hue, k.created_at, k.export_path, k.reason, k.crop_x, k.zoom, track_json(&k.track)],
+            &format!("INSERT INTO clips ({CLIP_COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18)"),
+            params![k.id, k.project_id, k.title, k.start_sec, k.end_sec, k.aspect, k.target, k.captions, k.export_status, k.score, k.hue, k.created_at, k.export_path, k.reason, k.crop_x, k.zoom, track_json(&k.track), split_json(&k.split)],
         )?;
     }
     tx.commit()?;
@@ -143,8 +148,8 @@ pub fn update_clip(c: &Connection, id: &str, patch: ClipPatch) -> AppResult<Clip
     patch.apply(&mut clip);
     clip.validate()?;
     c.execute(
-        "UPDATE clips SET title=?2, start_sec=?3, end_sec=?4, aspect=?5, target=?6, captions=?7, export_status=?8, crop_x=?9, zoom=?10, track=?11 WHERE id=?1",
-        params![clip.id, clip.title, clip.start_sec, clip.end_sec, clip.aspect, clip.target, clip.captions, clip.export_status, clip.crop_x, clip.zoom, track_json(&clip.track)],
+        "UPDATE clips SET title=?2, start_sec=?3, end_sec=?4, aspect=?5, target=?6, captions=?7, export_status=?8, crop_x=?9, zoom=?10, track=?11, split=?12 WHERE id=?1",
+        params![clip.id, clip.title, clip.start_sec, clip.end_sec, clip.aspect, clip.target, clip.captions, clip.export_status, clip.crop_x, clip.zoom, track_json(&clip.track), split_json(&clip.split)],
     )?;
     Ok(clip)
 }
@@ -267,7 +272,7 @@ mod tests {
         Clip {
             id: id.into(), project_id: pid.into(), title: "Final boss".into(), start_sec: 10.0, end_sec: 40.0,
             aspect: "9:16".into(), target: "tiktok".into(), captions: "generated".into(), export_status: "not-exported".into(),
-            score: 90, hue: 10, created_at: "2026-11-20T10:05:00Z".into(), export_path: None, reason: None, crop_x: 50.0, zoom: 1.0, track: None,
+            score: 90, hue: 10, created_at: "2026-11-20T10:05:00Z".into(), export_path: None, reason: None, crop_x: 50.0, zoom: 1.0, track: None, split: None,
         }
     }
     fn job(id: &str, status: &str) -> Job {
@@ -280,9 +285,9 @@ mod tests {
     #[test]
     fn migration_is_idempotent() {
         let c = open_memory();
-        assert_eq!(schema_version(&c).unwrap(), 4);
+        assert_eq!(schema_version(&c).unwrap(), 5);
         migrate(&c).unwrap();
-        assert_eq!(schema_version(&c).unwrap(), 4);
+        assert_eq!(schema_version(&c).unwrap(), 5);
     }
 
     #[test]
@@ -361,6 +366,13 @@ mod tests {
         update_clip(&c, "c1", patch).unwrap();
         let k = get_clip(&c, "c1").unwrap();
         assert_eq!((k.crop_x, k.zoom, k.track.as_ref().map(Vec::len)), (20.0, 1.5, Some(2)));
+        let split = Split { x: 0.0, y: 0.6, w: 0.3, h: 0.4, share: 0.35, gy: 0.5 };
+        let k = update_clip(&c, &k.id, ClipPatch { split: Some(split), ..Default::default() }).unwrap();
+        assert_eq!(list_clips(&c).unwrap().into_iter().find(|x| x.id == k.id).unwrap().split, Some(split));
+        let bad = Split { w: 0.9, x: 0.5, ..split };
+        assert!(update_clip(&c, &k.id, ClipPatch { split: Some(bad), ..Default::default() }).is_err());
+        let off = update_clip(&c, &k.id, ClipPatch { split: Some(Split { share: 0.0, ..split }), ..Default::default() }).unwrap();
+        assert_eq!(off.split, None);
         update_clip(&c, "c1", ClipPatch { track: Some(vec![]), ..Default::default() }).unwrap();
         assert!(get_clip(&c, "c1").unwrap().track.is_none());
         assert!(update_clip(&c, "c1", ClipPatch { zoom: Some(9.0), ..Default::default() }).is_err());

@@ -43,6 +43,19 @@ export interface Clip {
   zoom?: number
   /** Face-following path, [source seconds, face centre 0..1]. Replaces cropX. */
   track?: [number, number][] | null
+  /** Gaming layout on vertical clips: game on top, camera below. */
+  split?: Split | null
+}
+
+/** The camera box in the source picture (0..1) and its share of the output height. A share of 0 is off. */
+export interface Split {
+  x: number
+  y: number
+  w: number
+  h: number
+  share: number
+  /** Up and down position of the game picture, 0..1. Matters when it is zoomed in. */
+  gy?: number
 }
 
 export type JobStatus = 'queued' | 'running' | 'completed' | 'failed'

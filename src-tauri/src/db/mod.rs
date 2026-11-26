@@ -73,6 +73,10 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE clips ADD COLUMN zoom REAL NOT NULL DEFAULT 1;
     ALTER TABLE clips ADD COLUMN track TEXT;
     ",
+    // v5: gaming layout, the camera box and its share of the picture.
+    "
+    ALTER TABLE clips ADD COLUMN split TEXT;
+    ",
 ];
 
 pub fn schema_version(c: &Connection) -> AppResult<u32> {

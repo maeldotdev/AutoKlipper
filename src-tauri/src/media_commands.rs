@@ -101,7 +101,7 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
     } else {
         Encoder::X264
     };
-    let opts = RenderOptions { resolution: request.resolution, fps: request.fps, quality: request.quality, encoder, crop_x: 50.0, zoom: 1.0, x_expr: None };
+    let opts = RenderOptions { resolution: request.resolution, fps: request.fps, quality: request.quality, encoder, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None };
     opts.validate()?;
 
     let out_dir: PathBuf = match request.out_dir.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
@@ -142,7 +142,11 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
             let mut temp_files = Vec::new();
             let mut ass_name = None;
             if request.burn_captions && !words.is_empty() {
-                let style = request.style.clone().unwrap_or_default();
+                let mut style = request.style.clone().unwrap_or_default();
+                // In the gaming layout captions sit where the game and the camera meet.
+                if let Some(s) = clip.split.filter(|_| clip.aspect == "9:16") {
+                    style.pos_y = (1.0 - s.share) * 100.0;
+                }
                 let (w, h) = render::target_size(&clip.aspect, opts.resolution)?;
                 let name = format!("cap-{}.ass", uuid::Uuid::new_v4().simple());
                 std::fs::write(cwd.join(&name), ass::build(&words, &style, w, h))?;
@@ -154,6 +158,7 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
             let mut framed = opts.clone();
             framed.crop_x = clip.crop_x;
             framed.zoom = clip.zoom;
+            framed.split = clip.split;
             if let Some(path) = clip.track.as_deref().filter(|t| !t.is_empty()) {
                 let info = probe::probe(&tools, Path::new(src))?;
                 let (w, h) = render::target_size(&clip.aspect, opts.resolution)?;

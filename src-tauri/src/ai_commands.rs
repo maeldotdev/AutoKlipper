@@ -5,7 +5,7 @@ use tauri::{AppHandle, State};
 use crate::ai::env::{self, AiStatus};
 use crate::ai::transcript::Segment;
 use crate::ai::{highlights, ollama, reframe};
-use crate::db::models::ClipPatch;
+use crate::db::models::{Clip, ClipPatch};
 use crate::media::{analyze, process};
 use crate::db::models::Job;
 use crate::db::repo;
@@ -143,7 +143,7 @@ pub fn analyze_project(app: AppHandle, state: State<'_, AppState>, request: Anal
     crate::db::models::Clip {
         id: "check".into(), project_id: project.id.clone(), title: "check".into(), start_sec: 0.0, end_sec: 1.0,
         aspect: request.aspect.clone(), target: request.target.clone(), captions: "none".into(), export_status: "not-exported".into(),
-        score: 0, hue: 0, created_at: String::new(), export_path: None, reason: None, crop_x: 50.0, zoom: 1.0, track: None,
+        score: 0, hue: 0, created_at: String::new(), export_path: None, reason: None, crop_x: 50.0, zoom: 1.0, track: None, split: None,
     }
     .validate()?;
 
@@ -218,17 +218,19 @@ pub fn ai_setup_face(app: AppHandle, state: State<'_, AppState>) -> AppResult<St
     submit(&app, &state, new_job("Set up face tracking".into(), "download", "OpenCV from PyPI and GitHub".into()), work, Extra::default(), 2)
 }
 
-/// Follow the face through one clip and save the camera path on it. Returns the path.
-#[tauri::command]
-pub async fn track_faces(state: State<'_, AppState>, clip_id: String) -> AppResult<Vec<[f64; 2]>> {
-    let (py, script) = helper(&state)?;
-    let model = env::face_model(&models_root(&state));
+/// One look at the picture: when, and the main face as [centre x, centre y, width, height], all 0..1.
+type Sample = (f64, Option<[f64; 4]>);
+
+/// Find the main face a few times a second through one clip.
+async fn face_samples(state: &AppState, clip_id: &str) -> AppResult<(Clip, Vec<Sample>)> {
+    let (py, script) = helper(state)?;
+    let model = env::face_model(&models_root(state));
     if !model.is_file() {
         return invalid("Set up face tracking first (Settings, AI).");
     }
     let (clip, source) = {
         let db = state.db()?;
-        let clip = repo::get_clip_pub(&db, &clip_id)?;
+        let clip = repo::get_clip_pub(&db, clip_id)?;
         let source = repo::get_project(&db, &clip.project_id)?.source_path.map(PathBuf::from).filter(|p| p.is_file());
         let source = source.ok_or_else(|| AppError::Invalid("This clip has no video file on this PC.".into()))?;
         (clip, source)
@@ -242,7 +244,7 @@ pub async fn track_faces(state: State<'_, AppState>, clip_id: String) -> AppResu
         "--start".into(), format!("{:.3}", clip.start_sec), "--end".into(), format!("{:.3}", clip.end_sec), "--out".into(), out.display().to_string(),
     ];
     let result_file = out.clone();
-    let samples = tauri::async_runtime::spawn_blocking(move || -> AppResult<Vec<(f64, Option<f64>)>> {
+    let samples = tauri::async_runtime::spawn_blocking(move || -> AppResult<Vec<Sample>> {
         let running = process::Running::default();
         match process::run_lines(&py, &args, &running, |_| {}).map_err(AppError::Invalid)? {
             process::Outcome::Done => {}
@@ -250,16 +252,37 @@ pub async fn track_faces(state: State<'_, AppState>, clip_id: String) -> AppResu
             process::Outcome::Failed(e) => return Err(AppError::Invalid(analyze::helper_error(&e))),
         }
         let v: serde_json::Value = serde_json::from_slice(&std::fs::read(&result_file)?)?;
-        Ok(v["samples"].as_array().map(|a| a.iter().filter_map(|s| Some((s["t"].as_f64()?, s["cx"].as_f64()))).collect()).unwrap_or_default())
+        let face = |s: &serde_json::Value| Some([s["cx"].as_f64()?, s["cy"].as_f64()?, s["w"].as_f64()?, s["h"].as_f64()?]);
+        Ok(v["samples"].as_array().map(|a| a.iter().filter_map(|s| Some((s["t"].as_f64()?, face(s)))).collect()).unwrap_or_default())
     })
     .await
     .map_err(|e| AppError::Internal(e.to_string()))?;
     let _ = std::fs::remove_file(&out);
-    let path = reframe::smooth(&samples?);
+    Ok((clip, samples?))
+}
+
+/// Follow the face through one clip and save the camera path on it. Returns the path.
+#[tauri::command]
+pub async fn track_faces(state: State<'_, AppState>, clip_id: String) -> AppResult<Vec<[f64; 2]>> {
+    let (clip, samples) = face_samples(&state, &clip_id).await?;
+    let xs: Vec<(f64, Option<f64>)> = samples.iter().map(|(t, f)| (*t, f.map(|f| f[0]))).collect();
+    let path = reframe::smooth(&xs);
     if path.is_empty() {
         return invalid("No face was found in this clip, so the framing was left as it is.");
     }
     repo::update_clip(&*state.db()?, &clip.id, ClipPatch { track: Some(path.clone()), ..Default::default() })?;
     tracing::info!(clip = %clip.id, points = path.len(), "face path saved");
     Ok(path)
+}
+
+/// A first guess at the camera overlay [x, y, width, height], from where the face usually is.
+/// Nothing is saved: the user checks it and can drag it.
+#[tauri::command]
+pub async fn guess_camera(state: State<'_, AppState>, clip_id: String) -> AppResult<[f64; 4]> {
+    let (_, samples) = face_samples(&state, &clip_id).await?;
+    let faces: Vec<[f64; 4]> = samples.iter().filter_map(|s| s.1).collect();
+    match reframe::camera_box(&faces) {
+        Some(b) => Ok(b),
+        None => invalid("No face was found, so draw the camera box yourself."),
+    }
 }

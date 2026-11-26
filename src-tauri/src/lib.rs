@@ -71,6 +71,7 @@ pub fn run() {
             media_commands::audio_peaks,
             ai_commands::ai_setup_face,
             ai_commands::track_faces,
+            ai_commands::guess_camera,
             media_commands::ytdlp_status,
             media_commands::list_connectors,
             media_commands::probe_url,

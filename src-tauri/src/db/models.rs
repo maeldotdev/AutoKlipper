@@ -107,6 +107,33 @@ pub struct Clip {
     /// Face-following path: [seconds in the source, face centre 0..1].
     #[serde(default)]
     pub track: Option<Vec<[f64; 2]>>,
+    /// Gaming layout: game on top, camera below. Vertical clips only.
+    #[serde(default)]
+    pub split: Option<Split>,
+}
+
+/// Where the camera sits in the source picture (all 0..1) and how much of the output height it gets.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct Split {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+    pub share: f64,
+    /// Up and down position of the game picture, 0 top to 1 bottom.
+    #[serde(default = "half")]
+    pub gy: f64,
+}
+
+fn half() -> f64 {
+    0.5
+}
+
+impl Split {
+    pub fn is_valid(&self) -> bool {
+        let inside = |at: f64, len: f64| at >= 0.0 && len >= 0.05 && at + len <= 1.0001;
+        inside(self.x, self.w) && inside(self.y, self.h) && (0.2..=0.5).contains(&self.share) && (0.0..=1.0).contains(&self.gy)
+    }
 }
 
 impl Clip {
@@ -129,6 +156,9 @@ impl Clip {
                 return invalid("The face path is not valid");
             }
         }
+        if self.split.is_some_and(|s| !s.is_valid()) {
+            return invalid("The camera box is not valid");
+        }
         Ok(())
     }
 }
@@ -148,6 +178,8 @@ pub struct ClipPatch {
     pub zoom: Option<f64>,
     /// An empty list removes the face path.
     pub track: Option<Vec<[f64; 2]>>,
+    /// A share of 0 removes the gaming layout.
+    pub split: Option<Split>,
 }
 
 impl ClipPatch {
@@ -162,6 +194,7 @@ impl ClipPatch {
         if let Some(v) = self.crop_x { c.crop_x = v }
         if let Some(v) = self.zoom { c.zoom = v }
         if let Some(v) = self.track { c.track = (!v.is_empty()).then_some(v) }
+        if let Some(v) = self.split { c.split = (v.share > 0.0).then_some(v) }
     }
 }
 
