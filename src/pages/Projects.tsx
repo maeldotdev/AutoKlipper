@@ -5,13 +5,30 @@ import { Page, PlatformMark, Thumb } from '@/components/Common'
 import { Button } from '@/components/ui/Button'
 import { Segmented, Select } from '@/components/ui/Controls'
 import { ConfirmDialog } from '@/components/ui/Dialog'
-import { Badge, EmptyState, Skeleton } from '@/components/ui/Display'
+import { Badge, EmptyState, Progress, Skeleton } from '@/components/ui/Display'
 import { Input } from '@/components/ui/Input'
 import { PLATFORMS, PROJECT_STATUS } from '@/lib/labels'
 import { fmtBytes, fmtDuration, fmtRelative, shortSource } from '@/lib/utils'
 import { useLibrary } from '@/stores/library'
 import { toast } from '@/stores/ui'
 import type { Project, ProjectStatus } from '@/types'
+
+/** How far the work on a processing project has got. A link is downloaded first, then transcribed. */
+function ProjectProgress({ id, className }: { id: string; className?: string }) {
+  const job = useLibrary((s) => s.jobs.find((j) => j.id === s.projectJob[id]))
+  if (!job) return null
+  const pct = Math.round(job.progress)
+  const step = job.status === 'queued' ? 'Waiting' : job.kind === 'download' ? 'Downloading' : 'Finding clips'
+  return (
+    <div className={className}>
+      <div className="mb-1 flex justify-between text-meta text-t3">
+        <span>{step}</span>
+        <span className="font-mono tabular-nums">{pct}%</span>
+      </div>
+      <Progress value={pct} label={`${step}, ${pct}%`} />
+    </div>
+  )
+}
 
 export function Projects() {
   const nav = useNavigate()
@@ -78,6 +95,7 @@ export function Projects() {
                   <p className="mt-1 flex items-center gap-2 text-label text-t3"><PlatformMark id={p.platform} size={18} /><span className="truncate" title={p.sourceLabel}>{shortSource(p.sourceLabel)}</span></p>
                 </div>
               </button>
+              {p.status === 'processing' ? <ProjectProgress id={p.id} className="px-3.5 pb-1.5" /> : null}
               <div className="flex items-center gap-2 px-3.5 pb-3.5 pt-1">
                 <Badge tone={PROJECT_STATUS[p.status].tone}>{PROJECT_STATUS[p.status].label}</Badge>
                 <span className="text-label text-t2">{p.clipCount} clips</span>
@@ -102,7 +120,7 @@ export function Projects() {
                   <td className="px-3 text-t2">{PLATFORMS[p.platform].name}{p.sizeBytes ? `, ${fmtBytes(p.sizeBytes)}` : ''}</td>
                   <td className="px-3 font-mono text-label">{fmtDuration(p.duration)}</td>
                   <td className="px-3">{p.clipCount}</td>
-                  <td className="px-3"><Badge tone={PROJECT_STATUS[p.status].tone}>{PROJECT_STATUS[p.status].label}</Badge></td>
+                  <td className="px-3"><Badge tone={PROJECT_STATUS[p.status].tone}>{PROJECT_STATUS[p.status].label}</Badge>{p.status === 'processing' ? <ProjectProgress id={p.id} className="mt-1.5 w-36" /> : null}</td>
                   <td className="px-3 text-t2">{fmtRelative(p.createdAt)}</td>
                   <td className="px-3"><div className="flex justify-end gap-1"><Button size="sm" onClick={() => open(p)}>Open</Button><Button variant="ghost" size="icon-sm" aria-label={`Delete ${p.title}`} onClick={() => setDel(p)}><Trash2 size={14} /></Button></div></td>
                 </tr>
