@@ -44,6 +44,8 @@ export interface Settings {
   setupDone: boolean
   /** Look for a newer version when the app starts. */
   checkUpdates: boolean
+  /** Closing the window keeps the app running in the system tray (desktop app). */
+  closeToTray: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -77,6 +79,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ollamaModel: '',
   setupDone: false,
   checkUpdates: true,
+  closeToTray: true,
 }
 
 /** Real folder paths from the backend, set once at startup in the desktop app. */

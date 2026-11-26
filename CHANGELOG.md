@@ -1,5 +1,9 @@
 # Changelog
 
+## Tray
+- Closing the window keeps AutoKlipper running in the system tray. Switch it off in Settings, General.
+- Opening AutoKlipper again brings back the running window.
+
 ## Updates, first run and polish
 - In-app updates from GitHub releases, signed with the project's update key. A notice offers the new version; nothing installs without a click, and it waits while a job or livestream is running.
 - A fresh install opens a full-screen setup before the app.

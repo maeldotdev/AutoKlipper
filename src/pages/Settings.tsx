@@ -125,6 +125,11 @@ export function SettingsPage() {
                 <Switch label="Check for updates at start" checked={s.checkUpdates} onChange={(v) => s.set({ checkUpdates: v })} />
               </Row>
             )}
+            {IS_MOCK_BACKEND ? null : (
+              <Row label="Keep running in the tray when closed" hint="Closing the window hides AutoKlipper near the clock, so jobs and livestreams carry on. Right-click the tray icon to quit.">
+                <Switch label="Keep running in the tray when closed" checked={s.closeToTray} onChange={(v) => s.set({ closeToTray: v })} />
+              </Row>
+            )}
             <Row label="Desktop notifications" hint="Tell me when a long job finishes.">
               <Switch label="Desktop notifications" checked={s.notifications} onChange={(v) => s.set({ notifications: v })} />
             </Row>

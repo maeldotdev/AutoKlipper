@@ -14,6 +14,7 @@ mod media_commands;
 mod paths;
 mod settings;
 mod state;
+mod tray;
 mod update_commands;
 
 use tauri::Manager;
@@ -21,6 +22,8 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // First, so a second launch only brings the running window back: two copies would share one library.
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| tray::show(app)))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
@@ -36,8 +39,12 @@ pub fn run() {
             let _ = std::fs::remove_dir_all(paths.temp.join("live"));
             let conn = db::open(&paths.db_file)?;
             app.manage(state::AppState::new(conn, paths, guard));
+            if let Err(e) = tray::create(app.handle()) {
+                tracing::warn!("no tray icon, closing will quit: {e}");
+            }
             Ok(())
         })
+        .on_window_event(tray::on_window_event)
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
             commands::load_settings,
