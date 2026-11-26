@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- A Stop button wherever a job shows its progress: downloads, transcription, clip finding, exports and AI setup.
+
 ## 0.3.1
 - AI post captions: hashtags are no longer glued into one long word, and the caption is written in the video's language.
 

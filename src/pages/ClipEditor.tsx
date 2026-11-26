@@ -1,4 +1,5 @@
 import { Download, Film, Scissors, Upload, UserRound } from 'lucide-react'
+import { StopJob } from '@/components/StopJob'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { Page } from '@/components/Common'
@@ -54,6 +55,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
   const clip = useLibrary((s) => s.clips.find((c) => c.id === clipId))!
   const updateClip = useLibrary((s) => s.updateClip)
   const exportClips = useLibrary((s) => s.exportClips)
+  const exportJob = useLibrary((s) => s.clipJob[clipId])
   const folder = useSettings((s) => s.exportFolder)
   const { segments, style, setAspect } = useCaptions()
   const source = useCaptions((s) => s.source)
@@ -281,6 +283,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
           className="w-80 font-medium"
         />
         <Badge tone={EXPORT_STATUS[clip.exportStatus].tone}>{EXPORT_STATUS[clip.exportStatus].label}</Badge>
+        <StopJob jobId={exportJob} />
         <span className="text-label text-t3">{TARGETS[clip.target]}, {fmtDuration(len)}</span>
         <div className="ml-auto flex items-center gap-2">
           <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) load(f); e.target.value = '' }} />

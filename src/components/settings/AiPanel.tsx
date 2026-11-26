@@ -1,4 +1,5 @@
 import { Check, Download } from 'lucide-react'
+import { StopJob } from '@/components/StopJob'
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Select, Switch } from '@/components/ui/Controls'
@@ -19,13 +20,12 @@ function useRunning(prefix: string) {
 
 function JobBar({ prefix }: { prefix: string }) {
   const job = useRunning(prefix)
-  const cancel = useLibrary((s) => s.cancelJob)
   if (!job) return null
   return (
     <div className="mt-2 flex items-center gap-3">
       <Progress value={job.progress} label={job.title} className="flex-1" />
       <span className="w-10 font-mono text-meta">{Math.round(job.progress)}%</span>
-      <Button size="sm" onClick={() => cancel(job.id)}>Cancel</Button>
+      <StopJob jobId={job.id} />
     </div>
   )
 }

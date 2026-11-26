@@ -1,4 +1,5 @@
 import { ArrowRight, Clapperboard, FolderKanban, HardDrive, Link2, Radio, Timer, Upload } from 'lucide-react'
+import { StopJob } from '@/components/StopJob'
 import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from 'recharts'
@@ -35,6 +36,7 @@ export function Dashboard() {
   const loading = status !== 'ready'
 
   const running = jobs.filter((j) => j.status === 'running')
+  const active = jobs.filter((j) => j.status === 'running' || j.status === 'queued')
   const totalSrc = projects.reduce((a, p) => a + p.duration, 0)
   const storage = useStorage()
   const barTotal = storage.totalBytes ?? Math.max(storage.used, 1)
@@ -163,18 +165,21 @@ export function Dashboard() {
           <SectionHeader title="Processing activity" hint={IS_MOCK_BACKEND ? 'Simulated jobs' : 'Downloads, captions and exports'} />
           {loading ? (
             <Skeleton className="h-40" />
-          ) : running.length === 0 ? (
+          ) : active.length === 0 ? (
             <p className="py-6 text-center text-body text-t2">All quiet. Jobs you start appear here with live progress.</p>
           ) : (
             <ul className="flex flex-col gap-4">
-              {running.map((j) => (
+              {active.map((j) => (
                 <li key={j.id}>
                   <div className="mb-1.5 flex justify-between gap-2 text-body">
                     <span className="truncate">{j.title}</span>
-                    <span className="font-mono text-label text-t2">{Math.round(j.progress)}%</span>
+                    <span className="font-mono text-label text-t2">{j.status === 'queued' ? 'Waiting' : `${Math.round(j.progress)}%`}</span>
                   </div>
                   <Progress value={j.progress} label={j.title} />
-                  <p className="mt-1 truncate text-meta text-t3">{j.source}</p>
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    <p className="truncate text-meta text-t3">{j.source}</p>
+                    <StopJob jobId={j.id} />
+                  </div>
                 </li>
               ))}
             </ul>

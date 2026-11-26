@@ -1,4 +1,5 @@
 import { FolderKanban, LayoutGrid, List, Search, Trash2 } from 'lucide-react'
+import { StopJob } from '@/components/StopJob'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page, PlatformMark, Thumb } from '@/components/Common'
@@ -27,6 +28,7 @@ function ProjectProgress({ id, className }: { id: string; className?: string }) 
         <span className="font-mono tabular-nums">{pct}%</span>
       </div>
       <Progress value={pct} label={`${step}, ${pct}%`} />
+      <StopJob jobId={job.id} className="mt-2" />
     </div>
   )
 }

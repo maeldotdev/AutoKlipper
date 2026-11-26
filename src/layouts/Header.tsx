@@ -1,4 +1,5 @@
 import { Bell, ChevronRight, Cpu, Palette, Search, SlidersHorizontal } from 'lucide-react'
+import { StopJob } from '@/components/StopJob'
 import { Link, useLocation } from 'react-router-dom'
 import { describeRoute } from '@/app/routes'
 import { Badge, Progress } from '@/components/ui/Display'
@@ -13,14 +14,15 @@ import { IS_MOCK_BACKEND } from '@/services'
 import { useAi, useAiReady } from '@/stores/ai'
 
 function Processing() {
-  const jobs = useLibrary((s) => s.jobs).filter((j) => j.status === 'running')
+  const jobs = useLibrary((s) => s.jobs).filter((j) => j.status === 'running' || j.status === 'queued')
+  const running = jobs.filter((j) => j.status === 'running').length
   return (
     <Popover
       width={340}
       trigger={
-        <Button variant="secondary" size="md" aria-label={`Processing: ${jobs.length} running`}>
+        <Button variant="secondary" size="md" aria-label={`Processing: ${running} running`}>
           <Cpu size={15} className={jobs.length ? 'text-accent' : 'text-t3'} />
-          <span>{jobs.length ? `${jobs.length} running` : 'Idle'}</span>
+          <span>{jobs.length ? `${running} running` : 'Idle'}</span>
         </Button>
       }
     >
@@ -37,10 +39,13 @@ function Processing() {
               <li key={j.id}>
                 <div className="mb-1 flex justify-between gap-3 text-label">
                   <span className="truncate">{j.title}</span>
-                  <span className="font-mono text-t2">{Math.round(j.progress)}%</span>
+                  <span className="font-mono text-t2">{j.status === 'queued' ? 'Waiting' : `${Math.round(j.progress)}%`}</span>
                 </div>
                 <Progress value={j.progress} label={j.title} />
-                <p className="mt-1 truncate text-meta text-t3">{j.source}</p>
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <p className="truncate text-meta text-t3">{j.source}</p>
+                  <StopJob jobId={j.id} />
+                </div>
               </li>
             ))}
           </ul>

@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronRight, Clock3, RotateCcw, Trash2 } from 'lucide-react'
+import { StopJob } from '@/components/StopJob'
 import { Fragment, useState } from 'react'
 import { Page } from '@/components/Common'
 import { Button } from '@/components/ui/Button'
@@ -14,7 +15,7 @@ const TONE: Record<JobStatus, 'neutral' | 'accent' | 'success' | 'danger'> = { q
 const LABEL: Record<JobStatus, string> = { queued: 'Queued', running: 'Running', completed: 'Completed', failed: 'Failed' }
 
 export function History() {
-  const { jobs, status, retryJob, clearHistory, cancelJob } = useLibrary()
+  const { jobs, status, retryJob, clearHistory } = useLibrary()
   const [filter, setFilter] = useState<'all' | JobStatus>('all')
   const [open, setOpen] = useState<string | null>(null)
   const [confirm, setConfirm] = useState(false)
@@ -63,7 +64,7 @@ export function History() {
                     <td className="whitespace-nowrap px-3 text-t2">{fmtRelative(j.startedAt)}</td>
                     <td className="px-3 font-mono text-label">{j.status === 'running' ? '' : fmtDuration(j.durationSec)}</td>
                     <td className="px-3 text-right">
-                      {!j.simulated && (j.status === 'running' || j.status === 'queued') ? <Button size="sm" onClick={() => cancelJob(j.id)}>Cancel</Button> : null}
+                      <StopJob jobId={j.id} />
                       {j.status === 'failed' && j.simulated ? <Button size="sm" onClick={() => { retryJob(j.id); toast({ kind: 'info', title: 'Retrying (simulated)', body: j.title }) }}><RotateCcw size={13} />Retry</Button> : null}
                     </td>
                   </tr>

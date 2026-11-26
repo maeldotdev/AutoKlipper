@@ -1,4 +1,5 @@
 import { Captions, Check, Clapperboard, Download, Pencil, Play, Search, Trash2, X } from 'lucide-react'
+import { StopJob } from '@/components/StopJob'
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Page, Thumb } from '@/components/Common'
@@ -22,6 +23,7 @@ export function MyClips() {
   const [params, setParams] = useSearchParams()
   const projectId = params.get('project')
   const { clips, projects, status, deleteClips, exportClips } = useLibrary()
+  const clipJob = useLibrary((s) => s.clipJob)
   const folder = useSettings((s) => s.exportFolder)
   const [q, setQ] = useState('')
   const [target, setTarget] = useState<'all' | TargetPlatform>('all')
@@ -158,6 +160,7 @@ export function MyClips() {
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <Badge tone={e.tone}>{e.label}</Badge>
                     <Badge tone={c.captions === 'none' ? 'neutral' : 'cyan'}><Captions size={11} />{c.captions === 'none' ? 'None' : c.captions === 'styled' ? 'Styled' : 'Generated'}</Badge>
+                    <StopJob jobId={clipJob[c.id]} className="ml-auto" />
                   </div>
                 </div>
               </li>

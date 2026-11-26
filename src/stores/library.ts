@@ -87,6 +87,8 @@ interface LibraryStore {
   applyJobEvent: (e: JobEvent) => void
   /** The latest job working on each project, so its card can show progress. */
   projectJob: Record<string, string>
+  /** The export job of each clip that has one, by clip id. */
+  clipJob: Record<string, string>
   /** Transcribe a local file and create its clips with real highlight detection. */
   startFileAnalysis: (o: { path: string; title: string; duration: number; sizeBytes: number; gen: GenerateOpts }) => Promise<{ projectId: string; jobId: string } | null>
   startLinkImport: (o: {
@@ -286,6 +288,7 @@ export const useLibrary = create<LibraryStore>((set, get) => ({
   },
 
   projectJob: {},
+  clipJob: {},
 
   applyJobEvent: (e) => {
     const { job, clipId, exportStatus, exportPath, projectId, projectStatus, sourcePath, duration, sizeBytes } = e
@@ -293,6 +296,7 @@ export const useLibrary = create<LibraryStore>((set, get) => ({
     set((s) => ({
       jobs: prev ? s.jobs.map((j) => (j.id === job.id ? job : j)) : [job, ...s.jobs],
       projectJob: projectId ? { ...s.projectJob, [projectId]: job.id } : s.projectJob,
+      clipJob: clipId ? { ...s.clipJob, [clipId]: job.id } : s.clipJob,
       clips: clipId && exportStatus ? s.clips.map((c) => (c.id === clipId ? { ...c, exportStatus, exportPath: exportPath ?? c.exportPath } : c)) : s.clips,
       projects: projectId && projectStatus
         ? s.projects.map((p) => (p.id === projectId ? { ...p, status: projectStatus, sourcePath: sourcePath ?? p.sourcePath, duration: duration ?? p.duration, sizeBytes: sizeBytes ?? p.sizeBytes } : p))

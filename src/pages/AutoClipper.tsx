@@ -1,4 +1,5 @@
 import { CheckCircle2, FileVideo, Link2, Sparkles, Upload, X } from 'lucide-react'
+import { StopJob } from '@/components/StopJob'
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page, PlatformMark } from '@/components/Common'
@@ -430,6 +431,7 @@ export function AutoClipper() {
             <div>
               <div className="mb-1.5 flex justify-between text-body"><span>{job.kind === 'transcribe' && !job.simulated ? (running ? 'Transcribing and finding highlights' : done ? 'Done' : job.status === 'failed' ? 'Transcription failed' : 'Waiting') : job.kind === 'download' ? (running ? 'Downloading the video' : done ? 'Download finished' : job.status === 'failed' ? 'Download failed' : 'Waiting to download') : running ? 'Simulating clip generation' : done ? 'Simulation finished' : job.title}</span><span className="font-mono text-label">{Math.round(job.progress)}%</span></div>
               <Progress value={job.progress} tone={done ? 'success' : 'accent'} label="Generation progress" />
+              <div className="mt-2 flex justify-end empty:hidden"><StopJob jobId={job.id} /></div>
             </div>
           ) : null}
           {done ? (
