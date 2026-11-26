@@ -15,6 +15,10 @@ export interface Settings {
   exportFolder: string
   startup: 'dashboard' | 'last-page'
   notifications: boolean
+  /** Write a caption, hashtags and credit for every new clip. */
+  postCaptions: boolean
+  /** Hashtags added to every post. */
+  postTags: string
   device: 'auto' | 'cpu' | 'gpu'
   quality: 'fast' | 'balanced' | 'high'
   concurrency: number
@@ -59,6 +63,8 @@ export const DEFAULT_SETTINGS: Settings = {
   exportFolder: 'C:\\Users\\Public\\Videos\\AutoKlipper',
   startup: 'dashboard',
   notifications: true,
+  postCaptions: true,
+  postTags: '#fyp #foryou #viral #shorts',
   device: 'auto',
   quality: 'balanced',
   concurrency: 2,

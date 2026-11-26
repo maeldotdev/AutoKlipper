@@ -60,6 +60,9 @@ interface LibraryStore {
   deleteProject: (id: string) => void
   deleteClips: (ids: string[]) => void
   updateClip: (id: string, patch: Partial<Clip>) => void
+  /** Post text written by the backend: shown, not saved again. */
+  applyPost: (clipId: string, post: string | null) => void
+  setCredit: (projectId: string, name: string) => Promise<void>
   /** Cut one clip in two at `atSec` (seconds in the source). Returns the new clip's id. */
   splitClip: (id: string, atSec: number) => string | null
   runSimulated: (run: NewRun) => string
@@ -88,6 +91,7 @@ interface LibraryStore {
   startFileAnalysis: (o: { path: string; title: string; duration: number; sizeBytes: number; gen: GenerateOpts }) => Promise<{ projectId: string; jobId: string } | null>
   startLinkImport: (o: {
     url: string
+    uploader?: string | null
     title: string
     platform: PlatformId
     duration: number
@@ -139,7 +143,7 @@ function persist(p: Promise<unknown>, what: string) {
   })
 }
 
-const PATCH_KEYS = ['title', 'startSec', 'endSec', 'aspect', 'target', 'captions', 'exportStatus', 'cropX', 'zoom', 'track', 'split', 'hook', 'cuts'] as const
+const PATCH_KEYS = ['title', 'startSec', 'endSec', 'aspect', 'target', 'captions', 'exportStatus', 'cropX', 'zoom', 'track', 'split', 'hook', 'cuts', 'layout', 'filters', 'post'] as const
 const toPatch = (c: Partial<Clip>): ClipPatch =>
   Object.fromEntries(PATCH_KEYS.filter((k) => c[k] !== undefined).map((k) => [k, c[k]])) as ClipPatch
 
@@ -198,6 +202,13 @@ export const useLibrary = create<LibraryStore>((set, get) => ({
     persist(api.library.deleteClips(ids), 'delete clips')
   },
 
+  applyPost: (clipId, post) => set((s) => ({ clips: s.clips.map((c) => (c.id === clipId ? { ...c, post } : c)) })),
+
+  setCredit: async (projectId, name) => {
+    set((s) => ({ projects: s.projects.map((p) => (p.id === projectId ? { ...p, uploader: name.trim() || null } : p)) }))
+    await api.library.setCredit(projectId, name).catch((e) => toast({ kind: 'warning', title: 'Credit not saved', body: String(e) }))
+  },
+
   updateClip: (id, patch) => {
     set((s) => ({ clips: s.clips.map((c) => (c.id === id ? { ...c, ...patch } : c)) }))
     persist(api.library.updateClip(id, toPatch(patch)), 'update clip')
@@ -209,7 +220,7 @@ export const useLibrary = create<LibraryStore>((set, get) => ({
     // Both halves must be long enough to be a clip.
     if (!c || at < c.startSec + 1 || at > c.endSec - 1) return null
     const second: Clip = {
-      ...c, id: uid('c'), title: `${c.title} (2)`, startSec: at, exportStatus: 'not-exported', exportPath: null, createdAt: new Date().toISOString(),
+      ...c, id: uid('c'), title: `${c.title} (2)`, startSec: at, exportStatus: 'not-exported', exportPath: null, post: null, createdAt: new Date().toISOString(),
       // An empty path means "no path" to the backend.
       track: c.track ?? undefined,
     }
@@ -362,12 +373,12 @@ export const useLibrary = create<LibraryStore>((set, get) => ({
     }
   },
 
-  startLinkImport: async ({ url, title, platform, duration, maxHeight, gen }) => {
+  startLinkImport: async ({ url, title, platform, duration, maxHeight, uploader, gen }) => {
     const pid = uid('p')
     const hue = Math.floor(Math.random() * 360)
     const project: Project = {
       id: pid, title, sourceKind: 'url', sourceLabel: url, platform, duration, status: 'processing',
-      createdAt: new Date().toISOString(), clipCount: 0, hue, sizeBytes: 0, sourcePath: null,
+      createdAt: new Date().toISOString(), clipCount: 0, hue, sizeBytes: 0, sourcePath: null, uploader: uploader?.slice(0, 200) ?? null,
     }
     try {
       await api.library.createProject(project)

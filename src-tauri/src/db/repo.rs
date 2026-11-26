@@ -18,6 +18,7 @@ fn project_row(r: &Row) -> rusqlite::Result<Project> {
         size_bytes: r.get(9)?,
         source_path: r.get(10)?,
         clip_count: r.get(11)?,
+        uploader: r.get(12)?,
     })
 }
 
@@ -25,7 +26,7 @@ pub fn list_projects(c: &Connection) -> AppResult<Vec<Project>> {
     let mut st = c.prepare(
         "SELECT p.id, p.title, p.source_kind, p.source_label, p.platform, p.duration, p.status,
                 p.created_at, p.hue, p.size_bytes, p.source_path,
-                (SELECT COUNT(*) FROM clips k WHERE k.project_id = p.id)
+                (SELECT COUNT(*) FROM clips k WHERE k.project_id = p.id), p.uploader
          FROM projects p ORDER BY p.created_at DESC",
     )?;
     let rows = st.query_map([], project_row)?.collect::<Result<Vec<_>, _>>()?;
@@ -42,9 +43,9 @@ pub fn get_project(c: &Connection, id: &str) -> AppResult<Project> {
 pub fn insert_project(c: &Connection, p: &Project) -> AppResult<()> {
     p.validate()?;
     c.execute(
-        "INSERT INTO projects (id, title, source_kind, source_label, platform, duration, status, created_at, hue, size_bytes, source_path)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-        params![p.id, p.title, p.source_kind, p.source_label, p.platform, p.duration, p.status, p.created_at, p.hue, p.size_bytes, p.source_path],
+        "INSERT INTO projects (id, title, source_kind, source_label, platform, duration, status, created_at, hue, size_bytes, source_path, uploader)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        params![p.id, p.title, p.source_kind, p.source_label, p.platform, p.duration, p.status, p.created_at, p.hue, p.size_bytes, p.source_path, p.uploader],
     )?;
     Ok(())
 }
@@ -64,6 +65,15 @@ pub fn set_project_source(c: &Connection, id: &str, path: &str, duration: f64, s
         "UPDATE projects SET source_path = ?2, duration = ?3, size_bytes = ?4, status = 'ready' WHERE id = ?1",
         params![id, path, duration, size_bytes],
     )?;
+    if n == 0 {
+        return Err(AppError::NotFound(format!("project {id}")));
+    }
+    Ok(())
+}
+
+pub fn set_project_uploader(c: &Connection, id: &str, name: &str) -> AppResult<()> {
+    let name: String = name.trim().chars().take(200).collect();
+    let n = c.execute("UPDATE projects SET uploader = ?2 WHERE id = ?1", params![id, (!name.is_empty()).then_some(name)])?;
     if n == 0 {
         return Err(AppError::NotFound(format!("project {id}")));
     }
@@ -101,11 +111,14 @@ fn clip_row(r: &Row) -> rusqlite::Result<Clip> {
         split: r.get::<_, Option<String>>(17)?.and_then(|t| serde_json::from_str(&t).ok()),
         hook: r.get(18)?,
         cuts: r.get::<_, Option<String>>(19)?.and_then(|t| serde_json::from_str(&t).ok()),
+        layout: r.get::<_, Option<String>>(20)?.and_then(|t| serde_json::from_str(&t).ok()),
+        filters: r.get::<_, Option<String>>(21)?.and_then(|t| serde_json::from_str(&t).ok()),
+        post: r.get(22)?,
     })
 }
 
 const CLIP_COLS: &str =
-    "id, project_id, title, start_sec, end_sec, aspect, target, captions, export_status, score, hue, created_at, export_path, reason, crop_x, zoom, track, split, hook, cuts";
+    "id, project_id, title, start_sec, end_sec, aspect, target, captions, export_status, score, hue, created_at, export_path, reason, crop_x, zoom, track, split, hook, cuts, layout, filters, post";
 
 pub fn list_clips(c: &Connection) -> AppResult<Vec<Clip>> {
     let mut st = c.prepare(&format!("SELECT {CLIP_COLS} FROM clips ORDER BY created_at DESC, rowid DESC"))?;
@@ -119,6 +132,10 @@ fn track_json(t: &Option<Vec<[f64; 2]>>) -> Option<String> {
 
 fn split_json(s: &Option<Split>) -> Option<String> {
     s.as_ref().and_then(|v| serde_json::to_string(v).ok())
+}
+
+fn json<T: serde::Serialize>(v: &Option<T>) -> Option<String> {
+    v.as_ref().and_then(|v| serde_json::to_string(v).ok())
 }
 
 fn get_clip(c: &Connection, id: &str) -> AppResult<Clip> {
@@ -137,8 +154,8 @@ pub fn insert_clips(c: &Connection, clips: &[Clip]) -> AppResult<()> {
     let tx = c.unchecked_transaction()?;
     for k in clips {
         tx.execute(
-            &format!("INSERT INTO clips ({CLIP_COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20)"),
-            params![k.id, k.project_id, k.title, k.start_sec, k.end_sec, k.aspect, k.target, k.captions, k.export_status, k.score, k.hue, k.created_at, k.export_path, k.reason, k.crop_x, k.zoom, track_json(&k.track), split_json(&k.split), k.hook, track_json(&k.cuts)],
+            &format!("INSERT INTO clips ({CLIP_COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23)"),
+            params![k.id, k.project_id, k.title, k.start_sec, k.end_sec, k.aspect, k.target, k.captions, k.export_status, k.score, k.hue, k.created_at, k.export_path, k.reason, k.crop_x, k.zoom, track_json(&k.track), split_json(&k.split), k.hook, track_json(&k.cuts), json(&k.layout), json(&k.filters), k.post],
         )?;
     }
     tx.commit()?;
@@ -150,8 +167,8 @@ pub fn update_clip(c: &Connection, id: &str, patch: ClipPatch) -> AppResult<Clip
     patch.apply(&mut clip);
     clip.validate()?;
     c.execute(
-        "UPDATE clips SET title=?2, start_sec=?3, end_sec=?4, aspect=?5, target=?6, captions=?7, export_status=?8, crop_x=?9, zoom=?10, track=?11, split=?12, hook=?13, cuts=?14 WHERE id=?1",
-        params![clip.id, clip.title, clip.start_sec, clip.end_sec, clip.aspect, clip.target, clip.captions, clip.export_status, clip.crop_x, clip.zoom, track_json(&clip.track), split_json(&clip.split), clip.hook, track_json(&clip.cuts)],
+        "UPDATE clips SET title=?2, start_sec=?3, end_sec=?4, aspect=?5, target=?6, captions=?7, export_status=?8, crop_x=?9, zoom=?10, track=?11, split=?12, hook=?13, cuts=?14, layout=?15, filters=?16, post=?17 WHERE id=?1",
+        params![clip.id, clip.title, clip.start_sec, clip.end_sec, clip.aspect, clip.target, clip.captions, clip.export_status, clip.crop_x, clip.zoom, track_json(&clip.track), split_json(&clip.split), clip.hook, track_json(&clip.cuts), json(&clip.layout), json(&clip.filters), clip.post],
     )?;
     Ok(clip)
 }
@@ -267,14 +284,14 @@ mod tests {
         Project {
             id: id.into(), title: "Ranked grind".into(), source_kind: "url".into(), source_label: "twitch.tv/videos/1".into(),
             platform: "twitch".into(), duration: 3600.0, status: "processing".into(), created_at: "2026-11-20T10:00:00Z".into(),
-            clip_count: 0, hue: 220, size_bytes: 0, source_path: None,
+            clip_count: 0, hue: 220, size_bytes: 0, source_path: None, uploader: None,
         }
     }
     fn clip(id: &str, pid: &str) -> Clip {
         Clip {
             id: id.into(), project_id: pid.into(), title: "Final boss".into(), start_sec: 10.0, end_sec: 40.0,
             aspect: "9:16".into(), target: "tiktok".into(), captions: "generated".into(), export_status: "not-exported".into(),
-            score: 90, hue: 10, created_at: "2026-11-20T10:05:00Z".into(), export_path: None, reason: None, crop_x: 50.0, zoom: 1.0, track: None, split: None, hook: None, cuts: None,
+            score: 90, hue: 10, created_at: "2026-11-20T10:05:00Z".into(), export_path: None, reason: None, crop_x: 50.0, zoom: 1.0, track: None, split: None, hook: None, cuts: None, layout: None, filters: None, post: None,
         }
     }
     fn job(id: &str, status: &str) -> Job {
@@ -287,9 +304,9 @@ mod tests {
     #[test]
     fn migration_is_idempotent() {
         let c = open_memory();
-        assert_eq!(schema_version(&c).unwrap(), 6);
+        assert_eq!(schema_version(&c).unwrap(), 7);
         migrate(&c).unwrap();
-        assert_eq!(schema_version(&c).unwrap(), 6);
+        assert_eq!(schema_version(&c).unwrap(), 7);
     }
 
     #[test]

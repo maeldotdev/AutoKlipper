@@ -57,6 +57,9 @@ pub struct Project {
     /// Absolute path of the source video on this PC. None for projects without a local file.
     #[serde(default)]
     pub source_path: Option<String>,
+    /// Who made the source video, for the credit line in a post.
+    #[serde(default)]
+    pub uploader: Option<String>,
 }
 
 impl Project {
@@ -64,6 +67,9 @@ impl Project {
         text("id", &self.id, 64)?;
         text("title", &self.title, 300)?;
         text("sourceLabel", &self.source_label, 2000)?;
+        if self.uploader.as_ref().is_some_and(|u| u.chars().count() > 200) {
+            return invalid("The credit name is limited to 200 characters");
+        }
         one_of("sourceKind", &self.source_kind, SOURCE_KINDS)?;
         one_of("platform", &self.platform, PLATFORMS)?;
         one_of("status", &self.status, PROJECT_STATUS)?;
@@ -116,6 +122,56 @@ pub struct Clip {
     /// Parts removed from the clip, [from, to] in source seconds.
     #[serde(default)]
     pub cuts: Option<Vec<[f64; 2]>>,
+    /// Where the user dragged the captions and the hook title.
+    #[serde(default)]
+    pub layout: Option<Layout>,
+    /// Picture and voice filters applied at export.
+    #[serde(default)]
+    pub filters: Option<Filters>,
+    /// Caption, hashtags and credit, ready to paste when posting.
+    #[serde(default)]
+    pub post: Option<String>,
+}
+
+/// A piece of on-screen text: centre across (0..100), position down (0..100) and size factor.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct TextPlace {
+    pub x: f64,
+    pub y: f64,
+    pub scale: f64,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+pub struct Layout {
+    #[serde(default)]
+    pub cap: Option<TextPlace>,
+    #[serde(default)]
+    pub hook: Option<TextPlace>,
+}
+
+pub const LOOKS: &[&str] = &["none", "brighten", "vivid", "warm", "cool", "mono"];
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Filters {
+    pub look: String,
+    /// 0..1, how strong the look is.
+    pub strength: f64,
+    pub sharpen: bool,
+    pub denoise: bool,
+    pub voice: bool,
+}
+
+impl Default for Filters {
+    fn default() -> Self {
+        Filters { look: "none".into(), strength: 0.6, sharpen: false, denoise: false, voice: false }
+    }
+}
+
+impl Filters {
+    pub fn is_off(&self) -> bool {
+        self.look == "none" && !self.sharpen && !self.denoise && !self.voice
+    }
 }
 
 /// Where the camera sits in the source picture (all 0..1) and how much of the output height it gets.
@@ -170,6 +226,21 @@ impl Clip {
                 return invalid("The cut list is not valid");
             }
         }
+        if let Some(l) = &self.layout {
+            let ok = |t: &TextPlace| (0.0..=100.0).contains(&t.x) && (0.0..=100.0).contains(&t.y) && (0.4..=2.5).contains(&t.scale);
+            if !l.cap.iter().chain(&l.hook).all(ok) {
+                return invalid("The text position is not valid");
+            }
+        }
+        if let Some(f) = &self.filters {
+            one_of("filter", &f.look, LOOKS)?;
+            if !(0.0..=1.0).contains(&f.strength) {
+                return invalid("Filter strength must be between 0 and 1");
+            }
+        }
+        if self.post.as_ref().is_some_and(|p| p.chars().count() > 3000) {
+            return invalid("The post text is limited to 3000 characters");
+        }
         if self.split.is_some_and(|s| !s.is_valid()) {
             return invalid("The camera box is not valid");
         }
@@ -198,6 +269,11 @@ pub struct ClipPatch {
     pub hook: Option<String>,
     /// An empty list restores everything.
     pub cuts: Option<Vec<[f64; 2]>>,
+    /// With neither text placed, the captions and title go back to the style's own places.
+    pub layout: Option<Layout>,
+    pub filters: Option<Filters>,
+    /// An empty text removes the post.
+    pub post: Option<String>,
 }
 
 impl ClipPatch {
@@ -215,6 +291,9 @@ impl ClipPatch {
         if let Some(v) = self.split { c.split = (v.share > 0.0).then_some(v) }
         if let Some(v) = self.hook { c.hook = (!v.trim().is_empty()).then_some(v) }
         if let Some(v) = self.cuts { c.cuts = (!v.is_empty()).then_some(v) }
+        if let Some(v) = self.layout { c.layout = (v != Layout::default()).then_some(v) }
+        if let Some(v) = self.filters { c.filters = (!v.is_off()).then_some(v) }
+        if let Some(v) = self.post { c.post = (!v.trim().is_empty()).then_some(v) }
     }
 }
 

@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref, type RefObject } from 'react'
 import { SplitPicture, type FrameChange } from '@/components/editor/SplitLayout'
+import { Movable } from '@/components/caption/Movable'
+import { previewFilter } from '@/lib/filters'
 import { ASPECT_DIMS } from '@/lib/labels'
 import { clamp } from '@/lib/utils'
 import { FONT_STACKS } from '@/theme/captionPresets'
 import { usePlayhead } from '@/stores/playhead'
 import { centreAt, cropPosition, type TrackPoint } from '@/lib/reframe'
-import type { AspectRatio, CaptionSegment, CaptionStyle, CaptionWord, Split } from '@/types'
+import type { AspectRatio, CaptionSegment, CaptionStyle, CaptionWord, Filters, Split, TextLayout, TextPlace } from '@/types'
 
 const hexToRgba = (hex: string, a: number) => {
   const n = parseInt(hex.replace('#', ''), 16)
@@ -114,12 +116,15 @@ function wordStyle(w: CaptionWord, s: CaptionStyle, t: number, segFade: number):
 
 /** Pure renderer: given segments, style and time, draw the caption block. Uses cqh, so parent must be a size container. */
 export function CaptionLayer({
-  segments, style: s, time, onWordClick,
+  segments, style: s, time, onWordClick, place, onPlace,
 }: {
   segments: CaptionSegment[]
   style: CaptionStyle
   time: number
   onWordClick?: (segId: string, wordId: string) => void
+  /** Set when the user dragged or resized the captions. */
+  place?: TextPlace | null
+  onPlace?: (p: TextPlace) => void
 }) {
   const p = pick(segments, s, time)
   if (!p) return null
@@ -133,20 +138,25 @@ export function CaptionLayer({
   const shadow = textShadow(s)
 
   return (
-    <div
-      className="pointer-events-none absolute left-[5%] w-[90%]"
+    <Movable
+      label="Captions"
+      anchor="middle"
+      place={place ?? null}
+      onChange={onPlace}
+      className="w-[90%]"
       style={{
-        top: `${s.posY}%`,
+        left: `${(place?.x ?? 50) - 45}%`,
+        top: `${place?.y ?? s.posY}%`,
         transform: 'translateY(-50%)',
         fontFamily: FONT_STACKS[s.font].css,
-        fontSize: `${s.size / 10}cqh`,
+        fontSize: `${(s.size / 10) * (place?.scale ?? 1)}cqh`,
         fontWeight: s.weight,
         lineHeight: s.lineHeight,
         letterSpacing: `${s.letterSpacing / 100}em`,
         textTransform: s.uppercase ? 'uppercase' : 'none',
         textAlign: s.align,
         display: 'flex',
-        justifyContent: justify,
+        justifyContent: place ? 'center' : justify,
       }}
     >
       <div
@@ -193,7 +203,7 @@ export function CaptionLayer({
           </div>
         ))}
       </div>
-    </div>
+    </Movable>
   )
 }
 
@@ -211,6 +221,7 @@ export function Frame({
   return (
     <div className={`flex h-full w-full items-center justify-center ${className ?? ''}`} style={{ containerType: 'size' }}>
       <div
+        data-frame
         ref={frameRef}
         className="relative overflow-hidden rounded-md bg-black shadow-[0_20px_50px_-20px_rgb(0_0_0/0.8)] ring-1 ring-white/10"
         style={{ width: `min(100cqw, calc(100cqh * ${r}))`, aspectRatio: String(r), containerType: 'size' }}
@@ -223,7 +234,7 @@ export function Frame({
 
 /** Full preview: backdrop (loaded video or placeholder) + live caption layer. */
 export function PreviewStage({
-  aspect, segments, style, videoSrc, videoRef, cropX = 50, zoom = 1, track, trackOffset = 0, split, onFrame, hook, hue = 222, onWordClick, staticTime,
+  aspect, segments, style, videoSrc, videoRef, cropX = 50, zoom = 1, track, trackOffset = 0, split, onFrame, hook, hue = 222, onWordClick, staticTime, layout, onLayout, filters,
 }: {
   aspect: AspectRatio
   segments: CaptionSegment[]
@@ -244,6 +255,10 @@ export function PreviewStage({
   hue?: number
   onWordClick?: (segId: string, wordId: string) => void
   staticTime?: number
+  /** Dragged text positions, and the way to change them. */
+  layout?: TextLayout | null
+  onLayout?: (l: TextLayout) => void
+  filters?: Filters | null
 }) {
   const live = usePlayhead((s) => s.time)
   const time = staticTime ?? live
@@ -258,7 +273,7 @@ export function PreviewStage({
   return (
     <Frame aspect={aspect}>
       {videoSrc ? (
-        <>
+        <div className="absolute inset-0" style={{ filter: previewFilter(filters) }}>
         <video
           ref={sourceRef}
           src={videoSrc}
@@ -270,7 +285,7 @@ export function PreviewStage({
           style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%`, left: `${-(zoom - 1) * pos * 100}%`, top: `${-(zoom - 1) * 50}%`, objectPosition: `${pos * 100}% 50%` }}
         />
         {stacked ? <SplitPicture videoRef={sourceRef} split={stacked} cropX={cropX} zoom={zoom} onChange={onFrame} /> : null}
-        </>
+        </div>
       ) : (
         <div className="thumb absolute inset-0" style={{ ['--h' as string]: hue } as CSSProperties}>
           <div className="absolute inset-0 flex items-start justify-center pt-[6%]">
@@ -278,9 +293,18 @@ export function PreviewStage({
           </div>
         </div>
       )}
-      <CaptionLayer segments={segments} style={captionStyle} time={time} onWordClick={onWordClick} />
+      <CaptionLayer segments={segments} style={captionStyle} time={time} onWordClick={onWordClick} place={layout?.cap} onPlace={onLayout ? (cap) => onLayout({ ...layout, cap }) : undefined} />
       {hook?.trim() ? (
-        <p className="pointer-events-none absolute inset-x-[4%] top-[7%] z-[2] break-words text-center font-bold leading-tight text-white [font-size:4.3cqh] [paint-order:stroke_fill] [-webkit-text-stroke:0.8cqh_black]">{hook.trim()}</p>
+        <Movable
+          label="Hook title"
+          anchor="top"
+          place={layout?.hook ?? null}
+          onChange={onLayout ? (h) => onLayout({ ...layout, hook: h }) : undefined}
+          className="flex w-[92%] justify-center"
+          style={{ left: `${(layout?.hook?.x ?? 50) - 46}%`, top: `${layout?.hook?.y ?? 7}%` }}
+        >
+          <p className="break-words text-center font-bold leading-tight text-white [paint-order:stroke_fill]" style={{ fontSize: `${4.3 * (layout?.hook?.scale ?? 1)}cqh`, WebkitTextStroke: `${0.8 * (layout?.hook?.scale ?? 1)}cqh black` }}>{hook.trim()}</p>
+        </Movable>
       ) : null}
     </Frame>
   )

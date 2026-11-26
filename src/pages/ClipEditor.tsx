@@ -1,4 +1,4 @@
-import { Captions, Crop, Download, Film, Palette, Scissors, Upload, UserRound } from 'lucide-react'
+import { Download, Film, Scissors, Upload, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { Page } from '@/components/Common'
@@ -25,8 +25,11 @@ import { useLibrary } from '@/stores/library'
 import { useSettings } from '@/stores/settings'
 import { toast } from '@/stores/ui'
 import { BUILT_IN_PRESETS } from '@/theme/captionPresets'
-import type { AspectRatio, Split } from '@/types'
+import type { AspectRatio, Filters, Split, TextLayout, TextPlace } from '@/types'
 import { CameraBox } from '@/components/editor/SplitLayout'
+import { FilterPanel } from '@/components/editor/FilterPanel'
+import { PostPanel } from '@/components/editor/PostPanel'
+import { NO_FILTERS } from '@/lib/filters'
 import { DEFAULT_SPLIT } from '@/lib/split'
 
 export function ClipEditor() {
@@ -96,6 +99,23 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
   const savedLayout = useSettings((s) => s.savedLayout)
   const saveSetting = useSettings((s) => s.set)
   const [hook, setHook] = useState(clip.hook ?? '')
+  const [layout, setLayout] = useState<TextLayout>(clip.layout ?? {})
+  const [filters, setFilters] = useState<Filters>(clip.filters ?? NO_FILTERS)
+  // Saved shortly after dragging or sliding stops.
+  useEffect(() => {
+    if (JSON.stringify(layout) === JSON.stringify(clip.layout ?? {})) return
+    const t = setTimeout(() => updateClip(clip.id, { layout }), 400)
+    return () => clearTimeout(t)
+  }, [layout, clip.id, clip.layout, updateClip])
+  useEffect(() => {
+    if (JSON.stringify(filters) === JSON.stringify(clip.filters ?? NO_FILTERS)) return
+    const t = setTimeout(() => updateClip(clip.id, { filters }), 400)
+    return () => clearTimeout(t)
+  }, [filters, clip.id, clip.filters, updateClip])
+  const sizeText = (key: 'cap' | 'hook', scale: number) => {
+    const from: TextPlace = layout[key] ?? (key === 'hook' ? { x: 50, y: 7, scale: 1 } : { x: 50, y: gaming && split ? (1 - split.share) * 100 : style.posY, scale: 1 })
+    setLayout({ ...layout, [key]: { ...from, scale } })
+  }
   const [found, setFound] = useState<Awaited<ReturnType<typeof api.ai.findCuts>> | null>(null)
   const [finding, setFinding] = useState(false)
   const cut = clip.cuts?.length ? clip.cuts : null
@@ -171,7 +191,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
   useSpaceToggle()
 
   const doExport = () => {
-    updateClip(clip.id, { cropX, zoom, hook: hook.trim(), ...(split ? { split } : {}) })
+    updateClip(clip.id, { cropX, zoom, hook: hook.trim(), layout, filters, ...(split ? { split } : {}) })
     exportClips([clip.id], { resolution: Number(quality), fps: Number(fps), burnCaptions: burn && real && captionsOn, writeSrt: srt && real && captionsOn })
     if (IS_MOCK_BACKEND) toast({ kind: 'info', title: 'Simulated export started', body: 'No file is written in the browser preview.' })
   }
@@ -240,10 +260,12 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
 
   const tabs = useMemo(
     () => [
-      { value: 'captions', label: 'Captions', icon: <Captions size={14} /> },
-      { value: 'style', label: 'Style', icon: <Palette size={14} /> },
-      { value: 'frame', label: 'Frame', icon: <Crop size={14} /> },
-      { value: 'export', label: 'Export', icon: <Download size={14} /> },
+      { value: 'captions', label: 'Captions' },
+      { value: 'style', label: 'Style' },
+      { value: 'frame', label: 'Frame' },
+      { value: 'filters', label: 'Filters' },
+      { value: 'post', label: 'Post' },
+      { value: 'export', label: 'Export' },
     ],
     [],
   )
@@ -272,7 +294,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
         <div className="flex min-h-0 flex-col gap-3">
           <section className="panel flex min-h-0 flex-1 flex-col overflow-hidden" aria-label="Preview">
             <div className="min-h-0 flex-1 bg-app/60 p-4">
-              <PreviewStage aspect={clip.aspect} segments={captionsOn ? segments : []} style={style} videoSrc={video?.src} videoRef={videoRef} cropX={cropX} zoom={zoom} split={split} hook={hook} onFrame={(c) => { if (c.split) setSplit(c.split); if (c.cropX !== undefined) setCropX(c.cropX) }} track={clip.track} trackOffset={clip.startSec} hue={clip.hue} onWordClick={(segId, wordId) => { setSelected({ segId, wordId }); setTab('captions') }} />
+              <PreviewStage aspect={clip.aspect} segments={captionsOn ? segments : []} style={style} videoSrc={video?.src} videoRef={videoRef} cropX={cropX} zoom={zoom} split={split} hook={hook} layout={layout} onLayout={setLayout} filters={filters} onFrame={(c) => { if (c.split) setSplit(c.split); if (c.cropX !== undefined) setCropX(c.cropX) }} track={clip.track} trackOffset={clip.startSec} hue={clip.hue} onWordClick={(segId, wordId) => { setSelected({ segId, wordId }); setTab('captions') }} />
             </div>
             <div className="shrink-0 border-t border-line px-4 py-3"><Transport /></div>
           </section>
@@ -299,7 +321,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
         </div>
 
         <aside className="panel flex min-h-0 flex-col overflow-hidden" aria-label="Clip settings">
-          <Tabs value={tab} onValueChange={setTab} tabs={tabs} className="h-full">
+          <Tabs value={tab} onValueChange={setTab} tabs={tabs} className="h-full [&_[role=tab]]:px-2">
             <div className="min-h-0 flex-1 overflow-y-auto">
               <TabPanel value="captions">
                 <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
@@ -315,6 +337,17 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
                     <Switch label="Hook title" checked={!!hook} onChange={(on) => { const next = on ? clip.title.slice(0, 120) : ''; setHook(next); updateClip(clip.id, { hook: next }) }} />
                   </div>
                   {hook ? <Input aria-label="Hook title text" maxLength={120} value={hook} onChange={(e) => setHook(e.target.value)} onBlur={() => updateClip(clip.id, { hook: hook.trim() })} /> : <p className="text-meta text-t3">A headline at the top of the video.</p>}
+                </div>
+                <div className="flex flex-col gap-3 border-b border-line px-4 py-3">
+                  <p className="text-body font-medium">Text on the video</p>
+                  <p className="text-meta text-t3">Drag the captions or the title in the preview. Drag the dot at its corner to resize.</p>
+                  {(['cap', 'hook'] as const).filter((k) => k === 'cap' || hook).map((k) => (
+                    <div key={k}>
+                      <div className="mb-2 flex justify-between text-label"><span className="font-medium text-t2">{k === 'cap' ? 'Caption size' : 'Title size'}</span><span className="font-mono">{Math.round((layout[k]?.scale ?? 1) * 100)}%</span></div>
+                      <Slider label={k === 'cap' ? 'Caption size' : 'Title size'} min={40} max={250} step={5} value={[Math.round((layout[k]?.scale ?? 1) * 100)]} onChange={([v]) => sizeText(k, v / 100)} />
+                    </div>
+                  ))}
+                  {layout.cap || layout.hook ? <Button variant="ghost" onClick={() => setLayout({})}>Put the text back</Button> : null}
                 </div>
                 <div className="flex flex-col gap-2 border-b border-line px-4 py-3">
                   <p className="text-body font-medium">Pauses and filler words</p>
@@ -408,6 +441,12 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
                   )}
                   {!video ? <p className="text-meta text-t3">Crop and zoom act on the footage. {IS_MOCK_BACKEND ? 'Load a test video to see them move.' : 'This clip has no source video on this PC.'}</p> : null}
                 </div>
+              </TabPanel>
+              <TabPanel value="filters">
+                <FilterPanel value={filters} onChange={setFilters} />
+              </TabPanel>
+              <TabPanel value="post">
+                <PostPanel clip={clip} />
               </TabPanel>
               <TabPanel value="export">
                 <div className="flex flex-col gap-4 p-4">

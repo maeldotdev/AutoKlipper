@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Every new clip gets a post text: caption, hashtags and credit. Your Ollama model writes it when it is running; otherwise it comes from the words in the clip.
+- Windows pop-ups when clips are ready, an export ends or something fails. Clicking one opens AutoKlipper there.
+- Drag and resize the captions and the hook title on the video.
+- Filters at export: five looks with a strength slider, sharpen, noise clean-up and clearer voice.
 - Security: the window now has a content security policy, and only the Windows file dialog can set the FFmpeg or yt-dlp path.
 - Security: local AI packages are locked with a hash for every file, and pip is updated during setup.
 - Updated the url library to fix a crash bug.

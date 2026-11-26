@@ -138,7 +138,7 @@ export function SettingsPage() {
                 <Switch label="Keep running in the tray when closed" checked={s.closeToTray} onChange={(v) => s.set({ closeToTray: v })} />
               </Row>
             )}
-            <Row label="Desktop notifications" hint="Tell me when a long job finishes.">
+            <Row label="Desktop notifications" hint="A Windows pop-up when clips are ready, an export ends or something fails. Click it to open AutoKlipper there.">
               <Switch label="Desktop notifications" checked={s.notifications} onChange={(v) => s.set({ notifications: v })} />
             </Row>
             {IS_MOCK_BACKEND ? null : (

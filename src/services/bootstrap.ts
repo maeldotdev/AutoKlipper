@@ -21,6 +21,9 @@ export async function bootstrap(): Promise<void> {
     const { listen } = await import('@tauri-apps/api/event')
     await listen<JobEvent>('job-update', (e) => useLibrary.getState().applyJobEvent(e.payload))
     await listen<LiveUpdate>('live-update', (e) => useLive.getState().applyUpdate(e.payload))
+    // A clicked Windows notification, and post text written in the background.
+    await listen<string>('open-route', (e) => { if (e.payload.startsWith('/')) location.hash = e.payload })
+    await listen<{ clipId: string; post: string | null }>('clip-post', (e) => useLibrary.getState().applyPost(e.payload.clipId, e.payload.post))
     const info = await api.system.info()
     const stored = await api.system.loadSettings()
     if (info) {

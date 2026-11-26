@@ -82,6 +82,13 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE clips ADD COLUMN hook TEXT;
     ALTER TABLE clips ADD COLUMN cuts TEXT;
     ",
+    // v7: where the on-screen text sits, picture and voice filters, the post text, and who to credit.
+    "
+    ALTER TABLE clips ADD COLUMN layout TEXT;
+    ALTER TABLE clips ADD COLUMN filters TEXT;
+    ALTER TABLE clips ADD COLUMN post TEXT;
+    ALTER TABLE projects ADD COLUMN uploader TEXT;
+    ",
 ];
 
 pub fn schema_version(c: &Connection) -> AppResult<u32> {

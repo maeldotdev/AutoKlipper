@@ -232,7 +232,7 @@ export function AutoClipper() {
     if (!source) return
     if (!IS_MOCK_BACKEND && linkInfo && !native) {
       const id = await startLinkImport({
-        url: linkInfo.url, title: linkInfo.title, platform: linkInfo.connectorId as PlatformId, duration: linkInfo.durationSec ?? 0, maxHeight,
+        url: linkInfo.url, title: linkInfo.title, platform: linkInfo.connectorId as PlatformId, duration: linkInfo.durationSec ?? 0, maxHeight, uploader: linkInfo.uploader,
         gen: { count, aspect, target, withCaptions: captions, minLen: range[0], maxLen: range[1], moments },
       })
       if (id) {

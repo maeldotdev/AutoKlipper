@@ -146,6 +146,24 @@ export function AiPanel() {
             <Switch label="Use Ollama" checked={s.ollamaEnabled && !!ollama?.length} disabled={!ollama?.length} onChange={(v) => s.set({ ollamaEnabled: v, ollamaModel: s.ollamaModel || ollama?.[0] || '' })} />
           </div>
         </div>
+        {ollama?.length ? null : (
+          <div className="mt-3 text-label text-t2">
+            <p>To add Ollama, run these in PowerShell, one after the other, then check again. The model is about 2 GB.</p>
+            <p className="mt-1 select-all rounded-md border border-line bg-s2 px-3 py-2 font-mono">winget install Ollama.Ollama</p>
+            <p className="mt-1 select-all rounded-md border border-line bg-s2 px-3 py-2 font-mono">ollama pull llama3.2:3b</p>
+          </div>
+        )}
+        <div className="mt-4 flex items-start justify-between gap-4">
+          <div className="max-w-lg">
+            <p className="text-body font-medium">Post captions</p>
+            <p className="mt-0.5 text-label text-t3">Every new clip gets a caption, hashtags and a credit, ready to paste. Ollama writes it when it is running; without it, it comes from the words in the clip.</p>
+          </div>
+          <Switch label="Post captions" checked={s.postCaptions} onChange={(v) => s.set({ postCaptions: v })} />
+        </div>
+        <label className="mt-3 flex max-w-lg flex-col gap-1.5">
+          <span className="text-label font-medium text-t2">Hashtags added to every post</span>
+          <input value={s.postTags} maxLength={300} onChange={(e) => s.set({ postTags: e.target.value })} className="rounded-md border border-line bg-s2 px-3 py-2 text-body text-t1" />
+        </label>
       </div>
     </>
   )

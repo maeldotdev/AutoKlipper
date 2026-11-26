@@ -2,7 +2,7 @@ use serde::Deserialize;
 use std::path::Path;
 
 use super::process::{self, Outcome};
-use crate::db::models::Split;
+use crate::db::models::{Filters, Split};
 use crate::error::{invalid, AppResult};
 
 pub use super::process::Running;
@@ -40,6 +40,7 @@ pub struct RenderOptions {
     pub split: Option<Split>,
     /// Parts to remove, in seconds from the start of the clip.
     pub cuts: Vec<[f64; 2]>,
+    pub filters: Filters,
 }
 
 impl RenderOptions {
@@ -110,6 +111,34 @@ pub fn filter_graph(aspect: &str, o: &RenderOptions) -> AppResult<String> {
     ))
 }
 
+/// Picture filters, applied to the framed video before captions are drawn on it.
+pub fn video_filters(f: &Filters) -> Vec<String> {
+    let s = f.strength.clamp(0.0, 1.0);
+    let mut out = Vec::new();
+    if f.denoise {
+        out.push("hqdn3d=3:2:4:3".to_string());
+    }
+    match f.look.as_str() {
+        "brighten" => out.push(format!("eq=brightness={:.3}:contrast={:.3}:gamma={:.3}", 0.05 * s, 1.0 + 0.08 * s, 1.0 + 0.2 * s)),
+        "vivid" => out.push(format!("eq=contrast={:.3}:saturation={:.3}", 1.0 + 0.18 * s, 1.0 + 0.55 * s)),
+        "warm" | "cool" => {
+            let t = if f.look == "warm" { s } else { -s };
+            out.push(format!("colorbalance=rm={:.3}:bm={:.3}:rh={:.3}:bh={:.3}", 0.2 * t, -0.2 * t, 0.1 * t, -0.1 * t));
+        }
+        "mono" => out.push(format!("hue=s={:.3},eq=contrast={:.3}", 1.0 - s, 1.0 + 0.1 * s)),
+        _ => {}
+    }
+    if f.sharpen {
+        out.push("unsharp=5:5:0.9:5:5:0.0".to_string());
+    }
+    out
+}
+
+/// Clearer voice: cut rumble, reduce hiss, then even out the loudness.
+fn voice_filters(f: &Filters) -> Option<&'static str> {
+    f.voice.then_some("highpass=f=90,afftdn=nf=-25,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000")
+}
+
 /// `captions` is the file name of an ASS file in the working folder, drawn after scaling.
 pub fn build_args(input: &Path, start: f64, duration: f64, output: &Path, aspect: &str, o: &RenderOptions, captions: Option<&str>) -> AppResult<Vec<String>> {
     o.validate()?;
@@ -121,6 +150,7 @@ pub fn build_args(input: &Path, start: f64, duration: f64, output: &Path, aspect
     // -ss before -i seeks fast; re-encoding below keeps the cut frame accurate.
     let (seek, source, length) = (format!("{start:.3}"), input.display().to_string(), format!("{duration:.3}"));
     let mut graph = filter_graph(aspect, o)?;
+    let mut audio: Vec<String> = Vec::new();
     if o.cuts.is_empty() {
         a.extend(["-ss".into(), seek, "-i".into(), source, "-t".into(), length]);
     } else {
@@ -128,7 +158,15 @@ pub fn build_args(input: &Path, start: f64, duration: f64, output: &Path, aspect
         a.extend(["-ss".into(), seek, "-t".into(), length, "-i".into(), source]);
         let keep = super::cuts::keep_expr(&o.cuts);
         graph = format!("fps={},select='{keep}',setpts=N/FRAME_RATE/TB,{graph}", o.fps);
-        a.extend(["-af".into(), format!("aselect='{keep}',asetpts=N/SR/TB")]);
+        audio.push(format!("aselect='{keep}',asetpts=N/SR/TB"));
+    }
+    audio.extend(voice_filters(&o.filters).map(String::from));
+    if !audio.is_empty() {
+        a.extend(["-af".into(), audio.join(",")]);
+    }
+    let picture = video_filters(&o.filters);
+    if !picture.is_empty() {
+        graph.push_str(&format!(",{},format=yuv420p", picture.join(",")));
     }
     if let Some(name) = captions {
         if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
@@ -189,7 +227,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn opts() -> RenderOptions {
-        RenderOptions { resolution: 1080, fps: 30, quality: Quality::Balanced, encoder: Encoder::X264, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None, cuts: Vec::new() }
+        RenderOptions { resolution: 1080, fps: 30, quality: Quality::Balanced, encoder: Encoder::X264, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None, cuts: Vec::new(), filters: Filters::default() }
     }
 
     #[test]
@@ -281,6 +319,48 @@ mod tests {
         assert!((res.duration_sec - 3.0).abs() < 0.3, "cut length was {}", res.duration_sec);
         assert!(res.has_audio);
         assert_eq!(res.video_codec, "h264");
+    }
+
+    /// Every look, with sharpen, noise, voice and a cut together, must be accepted by the real FFmpeg.
+    #[test]
+    fn real_ffmpeg_accepts_every_filter() {
+        let Some(tools) = ff::locate(None) else { return };
+        let dir = std::env::temp_dir().join(format!("clipit-filter-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("src.mp4");
+        assert!(ff::command(&tools.ffmpeg)
+            .args(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30", "-f", "lavfi", "-i", "sine=frequency=440", "-t", "4", "-pix_fmt", "yuv420p"])
+            .arg(&src)
+            .status()
+            .unwrap()
+            .success());
+        for look in crate::db::models::LOOKS {
+            let mut o = opts();
+            o.resolution = 360;
+            o.filters = Filters { look: look.to_string(), strength: 1.0, sharpen: true, denoise: true, voice: true };
+            o.cuts = vec![[1.0, 1.5]];
+            let out = dir.join(format!("{look}.mp4"));
+            let args = build_args(&src, 0.0, 3.0, &out, "9:16", &o, None).unwrap();
+            run(&tools.ffmpeg, &args, 3.0, &Running::default(), |_| {}).unwrap_or_else(|e| panic!("{look}: {e}"));
+            let res = probe::probe(&tools, &out).unwrap();
+            assert!(res.has_audio && (res.duration_sec - 2.5).abs() < 0.3, "{look}: {}", res.duration_sec);
+        }
+        // Black and white at full strength really has no colour.
+        let pixels = ff::command(&tools.ffmpeg)
+            .args(["-hide_banner", "-loglevel", "error", "-ss", "1", "-i"])
+            .arg(dir.join("mono.mp4"))
+            .args(["-frames:v", "1", "-vf", "scale=8:8,format=rgb24", "-f", "rawvideo", "-"])
+            .output()
+            .unwrap()
+            .stdout;
+        assert!(pixels.chunks(3).all(|p| p.iter().max().unwrap() - p.iter().min().unwrap() < 12), "{pixels:?}");
+    }
+
+    #[test]
+    fn no_filter_leaves_the_command_as_before() {
+        let args = build_args(Path::new("a.mp4"), 0.0, 5.0, Path::new("b.mp4"), "9:16", &opts(), None).unwrap();
+        assert!(!args.iter().any(|a| a == "-af"));
+        assert!(video_filters(&Filters::default()).is_empty());
     }
 
     /// A blue "game" with a red "camera" in its bottom left corner: blue must end up on top, red below.

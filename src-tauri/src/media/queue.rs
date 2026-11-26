@@ -1,3 +1,4 @@
+use crate::{notify, posts};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -187,6 +188,26 @@ impl Queue {
         }
     }
 
+    /// A Windows pop-up for what the user is likely waiting for.
+    fn tell(&self, app: &AppHandle, job: &Job, work: &Work, extra: &Extra) {
+        if job.status == "failed" {
+            if job.error.as_deref() != Some("Cancelled.") {
+                notify::show(app, "Something failed", &job.title, "/history".into());
+            }
+            return;
+        }
+        match work {
+            Work::Analyze(a) => {
+                let n = extra.clips_added.unwrap_or(0);
+                let (title, route) = (notify::ready_text(n), format!("/clips?project={}", a.project_id));
+                notify::show(app, &title, &job.title, route);
+            }
+            // One pop-up for a batch of exports, when the last one finishes.
+            Work::Render { .. } if self.active() == 0 => notify::show(app, "Export finished", &job.title, "/clips".into()),
+            _ => {}
+        }
+    }
+
     fn run_task(self: &Arc<Self>, app: &AppHandle, task: Task, running: Arc<Running>) {
         let Task { mut job, work } = task;
         let started = Instant::now();
@@ -271,6 +292,7 @@ impl Queue {
             g.running.remove(&job.id);
             g.sched.finish(&job.id);
         }
+        self.tell(app, &job, &work, &extra);
         self.pump(app);
     }
 }
@@ -343,6 +365,8 @@ fn run_analyze(app: &AppHandle, job: &mut Job, a: &Analyze, running: &Running) -
         repo::set_project_status(&db, &a.project_id, "ready")
     };
     store().map_err(|e| e.to_string())?;
+    drop(db);
+    posts::write_in_background(app, result.clips.iter().map(|c| c.id.clone()).collect());
     for w in &result.warnings {
         tracing::warn!(project = %a.project_id, "{w}");
     }

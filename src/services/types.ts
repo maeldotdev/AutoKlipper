@@ -1,6 +1,6 @@
 import type { CaptionSegment, CaptionStyle, Clip, Job, LiveStream, Project } from '@/types'
 
-export type ClipPatch = Partial<Pick<Clip, 'title' | 'startSec' | 'endSec' | 'aspect' | 'target' | 'captions' | 'exportStatus' | 'cropX' | 'zoom' | 'track' | 'split' | 'hook' | 'cuts'>>
+export type ClipPatch = Partial<Pick<Clip, 'title' | 'startSec' | 'endSec' | 'aspect' | 'target' | 'captions' | 'exportStatus' | 'cropX' | 'zoom' | 'track' | 'split' | 'hook' | 'cuts' | 'layout' | 'filters' | 'post'>>
 
 export interface AppPathsInfo {
   root: string
@@ -36,6 +36,7 @@ export interface LibraryService {
   deleteProject(id: string): Promise<void>
   createClips(clips: Clip[]): Promise<void>
   updateClip(id: string, patch: ClipPatch): Promise<void>
+  setCredit(projectId: string, name: string): Promise<void>
   deleteClips(ids: string[]): Promise<void>
   saveJob(job: Job): Promise<void>
   clearFinishedJobs(): Promise<void>
@@ -163,6 +164,8 @@ export interface AiService {
   getTranscript(projectId: string): Promise<TranscriptDoc | null>
   saveTranscript(projectId: string, segments: CaptionSegment[]): Promise<void>
   ollamaModels(): Promise<string[]>
+  /** Write the clip's post text again. Saved by the backend. */
+  writePost(clipId: string): Promise<string | null>
   setupFace(): Promise<string>
   trackFaces(clipId: string): Promise<[number, number][]>
   /** A first guess at the camera overlay: x, y, width, height. */

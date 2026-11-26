@@ -4,6 +4,7 @@
 use serde::Deserialize;
 
 use super::transcript::{Segment, Word};
+use crate::db::models::TextPlace;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -23,6 +24,8 @@ pub struct Style {
     pub letter_spacing: f64,
     pub align: String,
     pub pos_y: f64,
+    /// Set when the user dragged the captions: their centre across, 0..100.
+    pub pos_x: Option<f64>,
     pub max_words: usize,
     pub max_lines: usize,
     pub anim_speed: f64,
@@ -35,7 +38,7 @@ impl Default for Style {
         Style {
             font: "geist".into(), size: 60.0, weight: 900, uppercase: true, color: "#ffffff".into(), highlight_color: "#ffd84a".into(),
             outline_width: 7.0, outline_color: "#000000".into(), shadow: 4.0, bg_enabled: false, bg_color: "#0b1020".into(), bg_opacity: 0.7,
-            letter_spacing: -1.0, align: "center".into(), pos_y: 70.0, max_words: 3, max_lines: 2, anim_speed: 1.2,
+            letter_spacing: -1.0, align: "center".into(), pos_y: 70.0, pos_x: None, max_words: 3, max_lines: 2, anim_speed: 1.2,
             animation: "pop-in".into(), highlight: "keywords".into(),
         }
     }
@@ -184,6 +187,7 @@ pub fn build(segments: &[Segment], style: &Style, width: u32, height: u32) -> St
         (1, ass_color(&s.outline_color, 1.0), outline, shadow)
     };
     let (an, x) = match s.align.as_str() {
+        _ if s.pos_x.is_some() => (5, width as f64 * s.pos_x.unwrap_or(50.0).clamp(0.0, 100.0) / 100.0),
         "left" => (4, width as f64 * 0.05),
         "right" => (6, width as f64 * 0.95),
         _ => (5, width as f64 / 2.0),
@@ -222,11 +226,12 @@ pub fn build(segments: &[Segment], style: &Style, width: u32, height: u32) -> St
 }
 
 /// A headline across the top of the picture for the whole clip.
-pub fn add_hook(ass: &mut String, hook: &str, width: u32, height: u32, duration: f64) {
+pub fn add_hook(ass: &mut String, hook: &str, place: Option<TextPlace>, width: u32, height: u32, duration: f64) {
     let h = height as f64;
+    let place = place.unwrap_or(TextPlace { x: 50.0, y: 7.0, scale: 1.0 });
     let tags = format!(
         "{{\\an8\\pos({:.0},{:.0})\\fnSegoe UI\\b1\\fs{:.0}\\fsp0\\1c&HFFFFFF&\\3c&H000000&\\bord{:.1}\\shad0}}",
-        width as f64 / 2.0, h * 0.07, h * 0.043, h * 0.004
+        width as f64 * place.x / 100.0, h * place.y / 100.0, h * 0.043 * place.scale, h * 0.004 * place.scale
     );
     ass.push_str(&dialogue(0.0, duration, format!("{tags}{}", escape(hook.trim()))));
     ass.push('\n');
@@ -256,11 +261,19 @@ mod tests {
     #[test]
     fn hook_title_covers_the_clip_and_cannot_inject_tags() {
         let mut out = build(&[], &style(|_| {}), 720, 1280);
-        add_hook(&mut out, "  {\\b0}Watch this ", 720, 1280, 12.5);
+        add_hook(&mut out, "  {\\b0}Watch this ", None, 720, 1280, 12.5);
         let e = events(&out);
         assert_eq!(e.len(), 1);
         assert!(e[0].starts_with("Dialogue: 0,0:00:00.00,0:00:12.50,") && e[0].ends_with("(/b0)Watch this"), "{}", e[0]);
         assert!(e[0].contains("\\an8\\pos(360,90)"), "{}", e[0]);
+    }
+
+    #[test]
+    fn dragged_text_goes_where_it_was_put() {
+        let mut out = build(&make(&[(0.0, "hi")]), &style(|s| { s.pos_x = Some(25.0); s.pos_y = 10.0; s.align = "left".into() }), 1000, 2000);
+        assert!(out.contains("\\an5\\pos(250,200)"), "{out}");
+        add_hook(&mut out, "Title", Some(TextPlace { x: 80.0, y: 50.0, scale: 2.0 }), 1000, 2000, 1.0);
+        assert!(out.contains("\\pos(800,1000)") && out.contains("\\fs172"), "{out}");
     }
 
     #[test]

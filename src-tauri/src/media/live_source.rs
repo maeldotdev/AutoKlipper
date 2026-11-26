@@ -11,6 +11,8 @@ use crate::error::{invalid, AppError, AppResult};
 pub struct LiveSource {
     pub connector: &'static str,
     pub title: String,
+    /// The channel, for the credit line.
+    pub uploader: Option<String>,
     /// One address, or two when the site serves picture and sound separately.
     pub urls: Vec<String>,
     /// Request headers FFmpeg must send, already formatted for `-headers`.
@@ -54,7 +56,8 @@ pub fn parse(json: &Value, connector: &'static str) -> AppResult<LiveSource> {
         return invalid("The site did not give a stream address AutoKlipper can record.");
     }
     let title = json["title"].as_str().or_else(|| json["uploader"].as_str()).unwrap_or("Livestream").to_string();
-    Ok(LiveSource { connector, title, urls, headers })
+    let uploader = json["uploader"].as_str().map(String::from);
+    Ok(LiveSource { connector, title, uploader, urls, headers })
 }
 
 /// True for links FFmpeg can open without help.
@@ -79,7 +82,7 @@ pub fn resolve(raw: &str, tool: Option<&YtDlp>, cookie_browser: Option<&str>, ma
     let connector = connectors::all().iter().find(|c| c.matches(&url)).map(|c| c.info()).ok_or_else(|| AppError::Invalid("No connector handles this link.".into()))?;
     if connector.id == "generic" && is_direct(&url) {
         let title = url.host_str().unwrap_or("Livestream").to_string();
-        return Ok(LiveSource { connector: connector.id, title, urls: vec![url.to_string()], headers: String::new() });
+        return Ok(LiveSource { connector: connector.id, title, uploader: None, urls: vec![url.to_string()], headers: String::new() });
     }
     let tool = tool.ok_or_else(|| AppError::Invalid(ytdlp::NO_YTDLP.into()))?;
     let height = if max_height == 0 { 2160 } else { max_height };

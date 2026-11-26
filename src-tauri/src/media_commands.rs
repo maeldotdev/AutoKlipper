@@ -168,7 +168,7 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
     } else {
         Encoder::X264
     };
-    let opts = RenderOptions { resolution: request.resolution, fps: request.fps, quality: request.quality, encoder, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None, cuts: Vec::new() };
+    let opts = RenderOptions { resolution: request.resolution, fps: request.fps, quality: request.quality, encoder, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None, cuts: Vec::new(), filters: Default::default() };
     opts.validate()?;
 
     let out_dir: PathBuf = match request.out_dir.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
@@ -221,11 +221,17 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
                 if let Some(s) = clip.split.filter(|_| clip.aspect == "9:16") {
                     style.pos_y = (1.0 - s.share) * 100.0;
                 }
+                // Text the user dragged or resized on this clip wins over the style.
+                if let Some(t) = clip.layout.and_then(|l| l.cap) {
+                    style.pos_x = Some(t.x);
+                    style.pos_y = t.y;
+                    style.size *= t.scale;
+                }
                 let (w, h) = render::target_size(&clip.aspect, opts.resolution)?;
                 let name = format!("cap-{}.ass", uuid::Uuid::new_v4().simple());
                 let mut text = ass::build(if burn { &words } else { &[] }, &style, w, h);
                 if let Some(hook) = hook {
-                    ass::add_hook(&mut text, hook, w, h, kept);
+                    ass::add_hook(&mut text, hook, clip.layout.and_then(|l| l.hook), w, h, kept);
                 }
                 std::fs::write(cwd.join(&name), text)?;
                 temp_files.push(cwd.join(&name));
@@ -237,6 +243,7 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
             framed.crop_x = clip.crop_x;
             framed.zoom = clip.zoom;
             framed.split = clip.split;
+            framed.filters = clip.filters.clone().unwrap_or_default();
             // The face path is in source seconds: move it onto the shortened timeline too.
             let track: Option<Vec<[f64; 2]>> = clip.track.as_ref().map(|t| t.iter().map(|p| [clip.start_sec + cuts::remap(&rel, p[0] - clip.start_sec), p[1]]).collect());
             framed.cuts = rel.clone();

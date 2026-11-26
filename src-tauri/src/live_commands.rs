@@ -1,3 +1,4 @@
+use crate::{notify, posts};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -93,7 +94,7 @@ impl LiveRequest {
         Clip {
             id: "check".into(), project_id: "check".into(), title: "check".into(), start_sec: 0.0, end_sec: 1.0,
             aspect: self.aspect.clone(), target: self.target.clone(), captions: "none".into(), export_status: "not-exported".into(),
-            score: 0, hue: 0, created_at: String::new(), export_path: None, reason: None, crop_x: 50.0, zoom: 1.0, track: None, split: None, hook: None, cuts: None,
+            score: 0, hue: 0, created_at: String::new(), export_path: None, reason: None, crop_x: 50.0, zoom: 1.0, track: None, split: None, hook: None, cuts: None, layout: None, filters: None, post: None,
         }
         .validate()
     }
@@ -127,6 +128,7 @@ struct Store {
     app: AppHandle,
     request: LiveRequest,
     stream_title: String,
+    uploader: Option<String>,
     connector: &'static str,
     host: String,
     moments: HashMap<usize, (f64, u32, String, String)>,
@@ -155,12 +157,14 @@ impl Store {
             hue,
             size_bytes: std::fs::metadata(&clip.file).map(|m| m.len() as i64).unwrap_or(0),
             source_path: Some(clip.file.display().to_string()),
+            uploader: self.uploader.as_ref().map(|u| u.chars().take(200).collect()),
         })?;
         if !clip.segments.is_empty() {
             repo::save_transcript(&db, &pid, &clip.language, &self.request.model, &clip.segments)?;
         }
+        let clip_id = uuid::Uuid::new_v4().to_string();
         repo::insert_clips(&db, &[Clip {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: clip_id.clone(),
             project_id: pid.clone(),
             title,
             start_sec: clip.start,
@@ -173,8 +177,11 @@ impl Store {
             hue,
             created_at: now,
             export_path: None,
-            reason: Some(reason), crop_x: 50.0, zoom: 1.0, track: None, split: None, hook: None, cuts: None,
+            reason: Some(reason), crop_x: 50.0, zoom: 1.0, track: None, split: None, hook: None, cuts: None, layout: None, filters: None, post: None,
         }])?;
+        drop(db);
+        posts::write_in_background(&self.app, vec![clip_id]);
+        notify::show(&self.app, "Live clip is ready", &self.stream_title, format!("/clips?project={pid}"));
         Ok(pid)
     }
 
@@ -311,7 +318,7 @@ pub async fn live_start(app: AppHandle, state: State<'_, AppState>, request: Liv
         auto_clip: request.auto_clip,
     };
     let host = url::Url::parse(&request.url).ok().and_then(|u| u.host_str().map(String::from)).unwrap_or_else(|| "stream".into());
-    let mut store = Store { app: app.clone(), stream_title: source.title, connector: source.connector, host: host.clone(), request, moments: HashMap::new() };
+    let mut store = Store { app: app.clone(), stream_title: source.title, uploader: source.uploader, connector: source.connector, host: host.clone(), request, moments: HashMap::new() };
     // The link itself is not logged: it can carry stream keys.
     tracing::info!(session = %store.request.id, connector = source.connector, %host, transcribing, "live session starting");
     std::thread::spawn(move || live::run(&cfg, &control, |e| store.handle(e, transcribing)));

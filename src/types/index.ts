@@ -17,6 +17,8 @@ export interface Project {
   sizeBytes: number
   /** Absolute path of the source video on this PC (desktop app only). */
   sourcePath?: string | null
+  /** Who made the source video, for the credit line of a post. */
+  uploader?: string | null
 }
 
 export type ExportStatus = 'not-exported' | 'queued' | 'exporting' | 'exported' | 'failed'
@@ -49,6 +51,30 @@ export interface Clip {
   hook?: string | null
   /** Parts removed from the clip, [from, to] in source seconds. */
   cuts?: [number, number][] | null
+  /** Where the user dragged the captions and the hook title. */
+  layout?: TextLayout | null
+  filters?: Filters | null
+  /** Caption, hashtags and credit, ready to paste. */
+  post?: string | null
+}
+
+/** Centre across and position down, 0..100 of the picture, and a size factor. */
+export interface TextPlace {
+  x: number
+  y: number
+  scale: number
+}
+export interface TextLayout {
+  cap?: TextPlace | null
+  hook?: TextPlace | null
+}
+export type Look = 'none' | 'brighten' | 'vivid' | 'warm' | 'cool' | 'mono'
+export interface Filters {
+  look: Look
+  strength: number
+  sharpen: boolean
+  denoise: boolean
+  voice: boolean
 }
 
 /** The camera box in the source picture (0..1) and its share of the output height. A share of 0 is off. */

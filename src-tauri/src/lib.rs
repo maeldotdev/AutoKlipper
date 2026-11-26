@@ -11,7 +11,9 @@ mod live_commands;
 mod logging;
 mod media;
 mod media_commands;
+mod notify;
 mod paths;
+mod posts;
 mod settings;
 mod state;
 mod tray;
@@ -50,6 +52,8 @@ pub fn run() {
             commands::load_settings,
             commands::patch_settings,
             commands::choose_tool,
+            posts::write_post,
+            posts::set_credit,
             commands::list_projects,
             commands::create_project,
             commands::set_project_status,

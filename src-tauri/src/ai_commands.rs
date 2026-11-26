@@ -147,7 +147,7 @@ pub fn analyze_project(app: AppHandle, state: State<'_, AppState>, request: Anal
     crate::db::models::Clip {
         id: "check".into(), project_id: project.id.clone(), title: "check".into(), start_sec: 0.0, end_sec: 1.0,
         aspect: request.aspect.clone(), target: request.target.clone(), captions: "none".into(), export_status: "not-exported".into(),
-        score: 0, hue: 0, created_at: String::new(), export_path: None, reason: None, crop_x: 50.0, zoom: 1.0, track: None, split: None, hook: None, cuts: None,
+        score: 0, hue: 0, created_at: String::new(), export_path: None, reason: None, crop_x: 50.0, zoom: 1.0, track: None, split: None, hook: None, cuts: None, layout: None, filters: None, post: None,
     }
     .validate()?;
 
