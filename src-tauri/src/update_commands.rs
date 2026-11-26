@@ -56,7 +56,7 @@ pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> AppRe
 pub fn link(which: &str) -> Option<&'static str> {
     match which {
         "kofi" => Some("https://ko-fi.com/mael22"),
-        "github" => Some("https://github.com/MaelPlays/AutoKlipper"),
+        "github" => Some("https://github.com/maeldotdev/AutoKlipper"),
         _ => None,
     }
 }

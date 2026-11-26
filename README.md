@@ -6,11 +6,11 @@
 
 **Turn long videos into captioned short clips, on your own PC.**
 
-[![Latest release](https://img.shields.io/github/v/release/MaelPlays/AutoKlipper?label=release&color=4f8cff)](https://github.com/MaelPlays/AutoKlipper/releases/latest)
-[![Windows](https://img.shields.io/badge/platform-Windows-4f8cff)](https://github.com/MaelPlays/AutoKlipper/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/maeldotdev/AutoKlipper?label=release&color=4f8cff)](https://github.com/maeldotdev/AutoKlipper/releases/latest)
+[![Windows](https://img.shields.io/badge/platform-Windows-4f8cff)](https://github.com/maeldotdev/AutoKlipper/releases/latest)
 [![MIT licence](https://img.shields.io/badge/licence-MIT-4f8cff)](LICENSE)
 
-[**Download for Windows**](https://github.com/MaelPlays/AutoKlipper/releases/latest) &nbsp;&nbsp; [Report a bug](https://github.com/MaelPlays/AutoKlipper/issues) &nbsp;&nbsp; [Support on Ko-fi](https://ko-fi.com/mael22)
+[**Download for Windows**](https://github.com/maeldotdev/AutoKlipper/releases/latest) &nbsp;&nbsp; [Report a bug](https://github.com/maeldotdev/AutoKlipper/issues) &nbsp;&nbsp; [Support on Ko-fi](https://ko-fi.com/mael22)
 
 <br>
 
@@ -41,7 +41,7 @@
 
 ## Install
 
-1. Download the installer from [Releases](https://github.com/MaelPlays/AutoKlipper/releases/latest) and run it.
+1. Download the installer from [Releases](https://github.com/maeldotdev/AutoKlipper/releases/latest) and run it.
 2. Follow the first-run setup. It shows what to install for FFmpeg, yt-dlp and Python, which are free.
 3. Add a video and generate clips.
 
@@ -51,7 +51,7 @@ Only clip videos you have the right to use, and follow each platform's terms.
 
 ## Contribute
 
-Found a bug or have an idea? [Open an issue](https://github.com/MaelPlays/AutoKlipper/issues). Pull requests are welcome; start with the [development guide](docs/DEVELOPMENT.md).
+Found a bug or have an idea? [Open an issue](https://github.com/maeldotdev/AutoKlipper/issues). Pull requests are welcome; start with the [development guide](docs/DEVELOPMENT.md).
 
 ## Licence
 

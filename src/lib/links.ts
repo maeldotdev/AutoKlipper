@@ -2,7 +2,7 @@ import { isTauri } from '@/lib/utils'
 
 export type OutsideLink = 'kofi' | 'github'
 
-const WEB: Record<OutsideLink, string> = { kofi: 'https://ko-fi.com/mael22', github: 'https://github.com/MaelPlays/AutoKlipper' }
+const WEB: Record<OutsideLink, string> = { kofi: 'https://ko-fi.com/mael22', github: 'https://github.com/maeldotdev/AutoKlipper' }
 
 /** Open the project's Ko-fi or GitHub page in the user's own browser. */
 export function openLink(which: OutsideLink): void {
