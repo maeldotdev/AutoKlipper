@@ -55,7 +55,7 @@ pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> AppRe
 /// Only these addresses can be opened, so page content can never choose one.
 pub fn link(which: &str) -> Option<&'static str> {
     match which {
-        "kofi" => Some("https://ko-fi.com/maeldotdev"),
+        "kofi" => Some("https://ko-fi.com/mael22"),
         "github" => Some("https://github.com/MaelPlays/AutoKlipper"),
         _ => None,
     }

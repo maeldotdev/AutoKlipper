@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.2
+- Fixed the Ko-fi link.
+
 ## 0.1.1
 - New app and installer icon.
 

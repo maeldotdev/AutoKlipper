@@ -10,7 +10,7 @@
 [![Windows](https://img.shields.io/badge/platform-Windows-4f8cff)](https://github.com/MaelPlays/AutoKlipper/releases/latest)
 [![MIT licence](https://img.shields.io/badge/licence-MIT-4f8cff)](LICENSE)
 
-[**Download for Windows**](https://github.com/MaelPlays/AutoKlipper/releases/latest) &nbsp;&nbsp; [Report a bug](https://github.com/MaelPlays/AutoKlipper/issues) &nbsp;&nbsp; [Support on Ko-fi](https://ko-fi.com/maeldotdev)
+[**Download for Windows**](https://github.com/MaelPlays/AutoKlipper/releases/latest) &nbsp;&nbsp; [Report a bug](https://github.com/MaelPlays/AutoKlipper/issues) &nbsp;&nbsp; [Support on Ko-fi](https://ko-fi.com/mael22)
 
 <br>
 
@@ -55,6 +55,6 @@ Found a bug or have an idea? [Open an issue](https://github.com/MaelPlays/AutoKl
 
 ## Licence
 
-[MIT](LICENSE). Free to use. If it helps you, [a Ko-fi tip](https://ko-fi.com/maeldotdev) keeps it going. Third-party tools and models keep their [own licences](RELEASE_GUIDE.md).
+[MIT](LICENSE). Free to use. If it helps you, [a Ko-fi tip](https://ko-fi.com/mael22) keeps it going. Third-party tools and models keep their [own licences](RELEASE_GUIDE.md).
 
 <sub>Screenshots show demo recordings made for this page.</sub>
