@@ -33,6 +33,7 @@ const mockSystem: SystemService = {
   info: async () => null,
   loadSettings: async () => ({}),
   patchSettings: noop,
+  chooseTool: async () => null,
   storageUsage: async () => null,
   cleanStorage: async () => 0,
   log: () => undefined,

@@ -7,7 +7,7 @@ import { Segmented, Select, Slider, Switch } from '@/components/ui/Controls'
 import { ConfirmDialog } from '@/components/ui/Dialog'
 import { Badge } from '@/components/ui/Display'
 import { Input } from '@/components/ui/Input'
-import { pickExecutable, pickFolder } from '@/lib/native'
+import { pickFolder } from '@/lib/native'
 import { cn, fmtBytes } from '@/lib/utils'
 import { useStorage } from '@/hooks/useStorage'
 import { AboutPanel } from '@/components/settings/AboutPanel'
@@ -70,16 +70,24 @@ export function SettingsPage() {
   useEffect(() => {
     if (tab === 'processing') checkYt()
   }, [tab, checkYt])
-  const chooseYt = async (path: string) => {
-    await api.system.patchSettings({ ytdlpPath: path })
-    s.set({ ytdlpPath: path })
-    checkYt()
+  const chooseTool = async (tool: 'ffmpeg' | 'ytdlp') => {
+    try {
+      const path = await api.system.chooseTool(tool)
+      if (!path) return
+      s.set(tool === 'ffmpeg' ? { ffmpegPath: path } : { ytdlpPath: path })
+      if (tool === 'ffmpeg') checkFfmpeg()
+      else checkYt()
+    } catch (e) {
+      toast({ kind: 'error', title: 'That file was not used', body: String(e) })
+    }
   }
-  const chooseFfmpeg = async (path: string) => {
-    // Save first: the backend reads the setting file when it looks for FFmpeg.
-    await api.system.patchSettings({ ffmpegPath: path })
-    s.set({ ffmpegPath: path })
-    checkFfmpeg()
+  const automaticTool = async (tool: 'ffmpeg' | 'ytdlp') => {
+    const patch = tool === 'ffmpeg' ? { ffmpegPath: '' } : { ytdlpPath: '' }
+    // Save first: the backend reads the settings file when it looks for the tool.
+    await api.system.patchSettings(patch)
+    s.set(patch)
+    if (tool === 'ffmpeg') checkFfmpeg()
+    else checkYt()
   }
   const tones = ['bg-accent', 'bg-cyan', 'bg-warn', 'bg-t3', 'bg-ok']
   const barTotal = storage.totalBytes ?? Math.max(storage.used, 1)
@@ -192,8 +200,8 @@ export function SettingsPage() {
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <Button onClick={checkFfmpeg}>Check again</Button>
-                      <Button onClick={() => void pickExecutable('Choose ffmpeg.exe').then((p) => { if (p) void chooseFfmpeg(p) })}>Change</Button>
-                      {s.ffmpegPath ? <Button variant="ghost" onClick={() => void chooseFfmpeg('')}>Use automatic</Button> : null}
+                      <Button onClick={() => void chooseTool('ffmpeg')}>Change</Button>
+                      {s.ffmpegPath ? <Button variant="ghost" onClick={() => void automaticTool('ffmpeg')}>Use automatic</Button> : null}
                     </div>
                   </div>
                 ) : (
@@ -201,7 +209,7 @@ export function SettingsPage() {
                     <p className="flex items-center gap-2"><Badge tone="danger">Not found</Badge><span className="text-body">Exports and video reading need FFmpeg.</span></p>
                     <p className="mt-2 text-label text-t2">Install it from a terminal, then check again:</p>
                     <p className="mt-1 rounded-md border border-line bg-s2 px-3 py-2 font-mono text-label">winget install Gyan.FFmpeg</p>
-                    <div className="mt-3 flex gap-2"><Button onClick={checkFfmpeg}>Check again</Button><Button onClick={() => void pickExecutable('Choose ffmpeg.exe').then((p) => { if (p) void chooseFfmpeg(p) })}>Choose ffmpeg.exe</Button></div>
+                    <div className="mt-3 flex gap-2"><Button onClick={checkFfmpeg}>Check again</Button><Button onClick={() => void chooseTool('ffmpeg')}>Choose ffmpeg.exe</Button></div>
                   </div>
                 )}
               </div>
@@ -220,8 +228,8 @@ export function SettingsPage() {
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <Button onClick={checkYt}>Check again</Button>
-                      <Button onClick={() => void pickExecutable('Choose yt-dlp.exe').then((p) => { if (p) void chooseYt(p) })}>Change</Button>
-                      {s.ytdlpPath ? <Button variant="ghost" onClick={() => void chooseYt('')}>Use automatic</Button> : null}
+                      <Button onClick={() => void chooseTool('ytdlp')}>Change</Button>
+                      {s.ytdlpPath ? <Button variant="ghost" onClick={() => void automaticTool('ytdlp')}>Use automatic</Button> : null}
                     </div>
                   </div>
                 ) : (
@@ -229,7 +237,7 @@ export function SettingsPage() {
                     <p className="flex items-center gap-2"><Badge tone="danger">Not found</Badge><span className="text-body">Importing from links needs yt-dlp. Local files still work.</span></p>
                     <p className="mt-2 text-label text-t2">Install it from a terminal, then check again:</p>
                     <p className="mt-1 rounded-md border border-line bg-s2 px-3 py-2 font-mono text-label">winget install yt-dlp.yt-dlp</p>
-                    <div className="mt-3 flex gap-2"><Button onClick={checkYt}>Check again</Button><Button onClick={() => void pickExecutable('Choose yt-dlp.exe').then((p) => { if (p) void chooseYt(p) })}>Choose yt-dlp.exe</Button></div>
+                    <div className="mt-3 flex gap-2"><Button onClick={checkYt}>Check again</Button><Button onClick={() => void chooseTool('ytdlp')}>Choose yt-dlp.exe</Button></div>
                   </div>
                 )}
               </div>

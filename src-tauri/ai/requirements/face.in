@@ -1,0 +1,2 @@
+-r base.in
+opencv-python-headless==5.1.0.95

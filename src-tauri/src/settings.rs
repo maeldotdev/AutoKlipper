@@ -22,6 +22,32 @@ pub fn load(file: &Path) -> AppResult<Value> {
     }
 }
 
+/// Programs AutoKlipper runs. Their paths are set only through `choose_tool`, never by page content.
+const TOOL_KEYS: [&str; 2] = ["ffmpegPath", "ytdlpPath"];
+
+/// What the page may change: it can put a tool back to automatic, but cannot name a program.
+pub fn without_tool_paths(mut patch: Value) -> Value {
+    if let Value::Object(p) = &mut patch {
+        p.retain(|k, v| !TOOL_KEYS.contains(&k.as_str()) || v.is_null() || v.as_str() == Some(""));
+    }
+    patch
+}
+
+/// The settings key and the file name a hand-picked program must start with.
+pub fn tool(which: &str) -> Option<(&'static str, &'static str)> {
+    match which {
+        "ffmpeg" => Some((TOOL_KEYS[0], "ffmpeg")),
+        "ytdlp" => Some((TOOL_KEYS[1], "yt-dlp")),
+        _ => None,
+    }
+}
+
+/// A program on this PC (not a network share) whose name matches the tool.
+pub fn tool_path_ok(file: &Path, stem: &str) -> bool {
+    let name = file.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+    !file.to_string_lossy().starts_with(r"\\") && name.starts_with(stem) && name.ends_with(".exe")
+}
+
 /// Shallow-merge `patch` into the stored settings and write atomically (temp file + rename).
 pub fn patch(file: &Path, patch: Value) -> AppResult<Value> {
     let Value::Object(p) = patch else {
@@ -64,6 +90,22 @@ mod tests {
         let v = patch(&f, json!({"concurrency": 3})).unwrap();
         assert_eq!(v, json!({"theme": "abyss", "concurrency": 3}));
         assert_eq!(load(&f).unwrap(), v);
+    }
+
+    #[test]
+    fn the_page_cannot_name_a_program() {
+        let p = without_tool_paths(json!({"ffmpegPath": "C:\\x\\evil.exe", "ytdlpPath": "", "theme": "slate"}));
+        assert_eq!(p, json!({"ytdlpPath": "", "theme": "slate"}));
+    }
+
+    #[test]
+    fn a_picked_program_must_be_the_tool_and_on_this_pc() {
+        assert!(tool_path_ok(Path::new(r"C:\tools\FFmpeg.exe"), "ffmpeg"));
+        assert!(tool_path_ok(Path::new(r"C:\tools\yt-dlp_x86.exe"), "yt-dlp"));
+        assert!(!tool_path_ok(Path::new(r"C:\tools\cmd.exe"), "ffmpeg"));
+        assert!(!tool_path_ok(Path::new(r"C:\tools\ffmpeg.bat"), "ffmpeg"));
+        assert!(!tool_path_ok(Path::new(r"\\server\share\ffmpeg.exe"), "ffmpeg"));
+        assert!(tool("python").is_none());
     }
 
     #[test]

@@ -1,0 +1,6 @@
+# Edit the .in files, then recompile (see docs/DEVELOPMENT.md).
+faster-whisper==1.2.1
+sherpa-onnx==2.0.3
+# Newer builds have no Windows wheel for these Python versions.
+onnxruntime<1.20 ; python_version < "3.10"
+onnxruntime<1.24 ; python_version == "3.10"

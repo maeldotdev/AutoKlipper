@@ -24,16 +24,6 @@ export async function pickVideoPath(): Promise<string | null> {
   return typeof res === 'string' ? res : null
 }
 
-export async function pickExecutable(title: string): Promise<string | null> {
-  if (!isTauri()) {
-    toast({ kind: 'info', title: 'File picker is desktop only', body: 'Run the Tauri app to open the native Windows dialog.' })
-    return null
-  }
-  const { open } = await import('@tauri-apps/plugin-dialog')
-  const res = await open({ multiple: false, title, filters: [{ name: 'Program', extensions: ['exe'] }] })
-  return typeof res === 'string' ? res : null
-}
-
 /** URL the webview can play for a local file. The backend allows each file when it is probed. */
 export async function previewUrl(path: string): Promise<string> {
   const { convertFileSrc } = await import('@tauri-apps/api/core')

@@ -59,6 +59,7 @@ export const tauriSystem: SystemService = {
   info: () => invoke<AppInfo>('app_info'),
   loadSettings: () => invoke<Record<string, unknown>>('load_settings'),
   patchSettings: (patch) => invoke('patch_settings', { patch }).then(() => undefined),
+  chooseTool: (tool) => invoke<string | null>('choose_tool', { tool }),
   storageUsage: () => invoke<UsageItem[]>('storage_usage'),
   cleanStorage: (target) => invoke<number>('clean_storage', { target }),
   log: (level, message) => void invoke('frontend_log', { level, message }).catch(() => undefined),

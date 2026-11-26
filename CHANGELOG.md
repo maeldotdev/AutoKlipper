@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- Security: the window now has a content security policy, and only the Windows file dialog can set the FFmpeg or yt-dlp path.
+- Security: local AI packages are locked with a hash for every file, and pip is updated during setup.
+- Updated the url library to fix a crash bug.
+
 ## 0.2.0
 - Clip and project cards show a real frame from the video.
 - Save a gaming layout and use it on other clips.

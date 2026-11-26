@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Controls'
 import { Badge } from '@/components/ui/Display'
 import { Input } from '@/components/ui/Input'
-import { pickExecutable, pickFolder } from '@/lib/native'
+import { pickFolder } from '@/lib/native'
 import { cn } from '@/lib/utils'
 import { api } from '@/services'
 import { useSettings } from '@/stores/settings'
+import { toast } from '@/stores/ui'
 import { LANGUAGES } from '@/theme/models'
 
 const STEPS = [
@@ -23,13 +24,14 @@ function ToolRow({ tool, onChange }: { tool: Tool; onChange: () => void }) {
   const s = useSettings()
   const choose = tool.setting
     ? () =>
-        void pickExecutable(`Choose ${tool.name}`).then(async (p) => {
-          if (!p || !tool.setting) return
-          // Save first: the backend reads the settings file when it looks for the tool.
-          await api.system.patchSettings({ [tool.setting]: p })
-          s.set({ [tool.setting]: p })
-          onChange()
-        })
+        void api.system
+          .chooseTool(tool.setting === 'ffmpegPath' ? 'ffmpeg' : 'ytdlp')
+          .then((p) => {
+            if (!p || !tool.setting) return
+            s.set({ [tool.setting]: p })
+            onChange()
+          })
+          .catch((e) => toast({ kind: 'error', title: 'That file was not used', body: String(e) }))
     : null
   return (
     <li className="border-b border-line py-3.5 last:border-0">

@@ -7,10 +7,22 @@ use crate::error::AppResult;
 use crate::media::ffmpeg;
 
 const SCRIPT: &str = include_str!("../../ai/clipit_ai.py");
-/// Pinned so a new release cannot change behaviour (or what gets installed) by itself.
-pub const PACKAGES: &[&str] = &["faster-whisper==1.2.1", "sherpa-onnx==2.0.3"];
-/// Added only when the user sets up face tracking.
-pub const FACE_PACKAGE: &str = "opencv-python-headless==5.1.0.95";
+/// Locked with a hash for every file, sub-packages included, so what gets installed cannot change by itself.
+const LOCKS: [(&str, &str); 3] = [
+    ("pip.txt", include_str!("../../ai/requirements/pip.txt")),
+    ("base.txt", include_str!("../../ai/requirements/base.txt")),
+    // Everything in base plus OpenCV, installed only when the user sets up face tracking.
+    ("face.txt", include_str!("../../ai/requirements/face.txt")),
+];
+
+/// `pip install` arguments for one lock file in the AI folder.
+pub fn install_args(ai_dir: &Path, lock: &str) -> Vec<String> {
+    let mut a: Vec<String> = ["-m", "pip", "install", "--disable-pip-version-check", "--no-input", "--require-hashes", "--only-binary=:all:", "-r"]
+        .map(String::from)
+        .to_vec();
+    a.push(ai_dir.join(lock).display().to_string());
+    a
+}
 pub const MODELS: &[&str] = &["tiny", "base", "small", "medium", "large-v3"];
 
 pub fn script_path(ai_dir: &Path) -> PathBuf {
@@ -21,6 +33,9 @@ pub fn script_path(ai_dir: &Path) -> PathBuf {
 pub fn write_script(ai_dir: &Path) -> AppResult<()> {
     std::fs::create_dir_all(ai_dir)?;
     std::fs::write(script_path(ai_dir), SCRIPT)?;
+    for (name, text) in LOCKS {
+        std::fs::write(ai_dir.join(name), text)?;
+    }
     Ok(())
 }
 
@@ -147,9 +162,18 @@ mod tests {
     }
 
     #[test]
+    fn every_locked_package_has_a_hash() {
+        for (name, text) in LOCKS {
+            let packages = text.lines().filter(|l| l.contains("==") && l.starts_with(|c: char| c.is_ascii_alphabetic())).count();
+            assert!(packages > 0 && text.matches("--hash=sha256:").count() >= packages, "{name}");
+        }
+    }
+
+    #[test]
     fn the_helper_script_is_written_to_the_ai_folder() {
         let d = std::env::temp_dir().join(format!("clipit-ai-{}", uuid::Uuid::new_v4()));
         write_script(&d).unwrap();
         assert!(std::fs::read_to_string(script_path(&d)).unwrap().contains("def cmd_transcribe"));
+        assert!(d.join("base.txt").is_file() && d.join("face.txt").is_file() && d.join("pip.txt").is_file());
     }
 }

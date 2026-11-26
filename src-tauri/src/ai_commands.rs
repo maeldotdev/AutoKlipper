@@ -64,11 +64,15 @@ pub fn ai_setup(app: AppHandle, state: State<'_, AppState>) -> AppResult<String>
     let Some((system, _)) = env::system_python() else {
         return invalid("Python 3.9 to 3.13 is needed first. Install it with: winget install Python.Python.3.12");
     };
-    let venv = env::venv_dir(&ai_dir(&state));
+    let dir = ai_dir(&state);
+    let venv = env::venv_dir(&dir);
     let py = env::venv_python(&venv);
-    let mut pip: Vec<String> = ["-m", "pip", "install", "--disable-pip-version-check", "--no-input"].map(String::from).to_vec();
-    pip.extend(env::PACKAGES.iter().map(|p| p.to_string()));
-    let steps = vec![(system, vec!["-m".into(), "venv".into(), venv.display().to_string()]), (py, pip)];
+    env::write_script(&dir)?;
+    let steps = vec![
+        (system, vec!["-m".into(), "venv".into(), venv.display().to_string()]),
+        (py.clone(), env::install_args(&dir, "pip.txt")),
+        (py, env::install_args(&dir, "base.txt")),
+    ];
     submit(&app, &state, new_job("Set up local AI".into(), "download", "Python packages from PyPI".into()), Work::Tool { steps, cleanup: None }, Extra::default(), 1)
 }
 
@@ -211,10 +215,11 @@ pub fn ai_setup_face(app: AppHandle, state: State<'_, AppState>) -> AppResult<St
     let (py, script) = helper(&state)?;
     let out = models_root(&state).join("face");
     std::fs::create_dir_all(&out)?;
-    let mut pip: Vec<String> = ["-m", "pip", "install", "--disable-pip-version-check", "--no-input"].map(String::from).to_vec();
-    pip.push(env::FACE_PACKAGE.into());
+    let dir = ai_dir(&state);
+    env::write_script(&dir)?;
     let fetch = vec![script.display().to_string(), "download-face".into(), "--out".into(), out.display().to_string()];
-    let work = Work::Tool { steps: vec![(py.clone(), pip), (py, fetch)], cleanup: None };
+    let steps = vec![(py.clone(), env::install_args(&dir, "pip.txt")), (py.clone(), env::install_args(&dir, "face.txt")), (py, fetch)];
+    let work = Work::Tool { steps, cleanup: None };
     submit(&app, &state, new_job("Set up face tracking".into(), "download", "OpenCV from PyPI and GitHub".into()), work, Extra::default(), 2)
 }
 

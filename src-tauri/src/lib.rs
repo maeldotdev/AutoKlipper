@@ -49,6 +49,7 @@ pub fn run() {
             commands::app_info,
             commands::load_settings,
             commands::patch_settings,
+            commands::choose_tool,
             commands::list_projects,
             commands::create_project,
             commands::set_project_status,

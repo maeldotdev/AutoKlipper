@@ -216,6 +216,8 @@ export interface SystemService {
   info(): Promise<AppInfo | null>
   loadSettings(): Promise<Record<string, unknown>>
   patchSettings(patch: Record<string, unknown>): Promise<void>
+  /** Windows file dialog for a program. Saved by the backend; null when cancelled. */
+  chooseTool(tool: 'ffmpeg' | 'ytdlp'): Promise<string | null>
   storageUsage(): Promise<UsageItem[] | null>
   cleanStorage(target: 'cache' | 'temp'): Promise<number>
   log(level: 'info' | 'warn' | 'error', message: string): void

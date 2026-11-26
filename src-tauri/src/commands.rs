@@ -4,7 +4,7 @@ use tauri::State;
 
 use crate::db::models::{Clip, ClipPatch, Job, Project};
 use crate::db::{self, repo};
-use crate::error::AppResult;
+use crate::error::{invalid, AppError, AppResult};
 use crate::files::{self, CleanTarget, UsageItem};
 use crate::paths::AppPaths;
 use crate::settings;
@@ -33,7 +33,23 @@ pub fn load_settings(state: State<'_, AppState>) -> AppResult<Value> {
 
 #[tauri::command]
 pub fn patch_settings(state: State<'_, AppState>, patch: Value) -> AppResult<Value> {
-    settings::patch(&state.paths.settings_file, patch)
+    settings::patch(&state.paths.settings_file, settings::without_tool_paths(patch))
+}
+
+/// Let the user pick ffmpeg.exe or yt-dlp.exe in a Windows dialog and save it. `None` when cancelled.
+#[tauri::command]
+pub async fn choose_tool(app: tauri::AppHandle, state: State<'_, AppState>, tool: String) -> AppResult<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    let Some((key, stem)) = settings::tool(&tool) else { return invalid("Unknown tool.") };
+    let picked = app.dialog().file().set_title(format!("Choose {stem}.exe")).add_filter("Program", &["exe"]).blocking_pick_file();
+    let Some(picked) = picked else { return Ok(None) };
+    let file = picked.into_path().map_err(|e| AppError::Invalid(e.to_string()))?;
+    if !settings::tool_path_ok(&file, stem) {
+        return invalid(format!("Choose the {stem}.exe file stored on this PC."));
+    }
+    let path = file.display().to_string();
+    settings::patch(&state.paths.settings_file, serde_json::json!({ key: path }))?;
+    Ok(Some(path))
 }
 
 /* ---------------- projects ---------------- */
