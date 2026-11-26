@@ -1,4 +1,4 @@
-import { Download, Film, Scissors, Upload, UserRound } from 'lucide-react'
+import { ArrowUpDown, Download, Film, Scissors, Upload, UserRound } from 'lucide-react'
 import { StopJob } from '@/components/StopJob'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
@@ -30,8 +30,10 @@ import type { AspectRatio, Filters, Split, TextLayout, TextPlace } from '@/types
 import { CameraBox } from '@/components/editor/SplitLayout'
 import { FilterPanel } from '@/components/editor/FilterPanel'
 import { PostPanel } from '@/components/editor/PostPanel'
+import { SoundPanel } from '@/components/editor/SoundPanel'
+import { useSoundPreview } from '@/hooks/useSoundPreview'
 import { NO_FILTERS } from '@/lib/filters'
-import { DEFAULT_SPLIT } from '@/lib/split'
+import { DEFAULT_SPLIT, seam } from '@/lib/split'
 
 export function ClipEditor() {
   const { clipId } = useParams()
@@ -101,6 +103,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
   const savedLayout = useSettings((s) => s.savedLayout)
   const saveSetting = useSettings((s) => s.set)
   const [hook, setHook] = useState(clip.hook ?? '')
+  useSoundPreview(clip.sfx, clip.startSec)
   const [layout, setLayout] = useState<TextLayout>(clip.layout ?? {})
   const [filters, setFilters] = useState<Filters>(clip.filters ?? NO_FILTERS)
   // Saved shortly after dragging or sliding stops.
@@ -115,7 +118,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
     return () => clearTimeout(t)
   }, [filters, clip.id, clip.filters, updateClip])
   const sizeText = (key: 'cap' | 'hook', scale: number) => {
-    const from: TextPlace = layout[key] ?? (key === 'hook' ? { x: 50, y: 7, scale: 1 } : { x: 50, y: gaming && split ? (1 - split.share) * 100 : style.posY, scale: 1 })
+    const from: TextPlace = layout[key] ?? (key === 'hook' ? { x: 50, y: 7, scale: 1 } : { x: 50, y: gaming && split ? seam(split) : style.posY, scale: 1 })
     setLayout({ ...layout, [key]: { ...from, scale } })
   }
   const [found, setFound] = useState<Awaited<ReturnType<typeof api.ai.findCuts>> | null>(null)
@@ -123,6 +126,23 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
   const cut = clip.cuts?.length ? clip.cuts : null
   const cutSeconds = (cut ?? []).reduce((n, [a, b]) => n + Math.max(0, Math.min(b, clip.endSec) - Math.max(a, clip.startSec)), 0)
   const gaming = !!split && clip.aspect === '9:16'
+  // Where the buttons put the captions. "Middle" is the line between game and camera in the gaming layout.
+  const middle = +(gaming && split ? seam(split) : 50).toFixed(1)
+  const spots = [{ label: 'Top', y: 18 }, { label: 'Middle', y: middle }, { label: 'Bottom', y: 82 }]
+  const near = (a: number, b: number) => Math.abs(a - b) < 0.15
+  const placeCaption = (label: string, y: number) => {
+    const scale = layout.cap?.scale ?? 1
+    // On the dividing line at normal size needs no override: it then follows a swap or a new camera height.
+    if (label === 'Middle' && gaming && scale === 1) return setLayout({ ...layout, cap: undefined })
+    setLayout({ ...layout, cap: { x: 50, y, scale } })
+  }
+  const swapPictures = () => {
+    if (!split) return
+    const next = { ...split, top: !split.top }
+    // A caption resized on the dividing line stays on it.
+    if (layout.cap && near(layout.cap.y, seam(split))) setLayout({ ...layout, cap: { ...layout.cap, y: +seam(next).toFixed(1) } })
+    setSplit(next)
+  }
   const [pad, setPad] = useState(15)
   const [peaks, setPeaks] = useState<number[] | null>(null)
   const splitClip = useLibrary((s) => s.splitClip)
@@ -265,7 +285,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
       { value: 'captions', label: 'Captions' },
       { value: 'style', label: 'Style' },
       { value: 'frame', label: 'Frame' },
-      { value: 'filters', label: 'Filters' },
+      { value: 'filters', label: 'Effects' },
       { value: 'post', label: 'Post' },
       { value: 'export', label: 'Export' },
     ],
@@ -319,6 +339,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
               onTrim={(i, o) => updateClip(clip.id, { startSec: i, endSec: o })}
               segments={segments}
               peaks={IS_MOCK_BACKEND ? null : (peaks ?? [])}
+              marks={clip.sfx?.map((s) => ({ at: s.at, label: s.file }))}
             />
           </section>
         </div>
@@ -344,6 +365,15 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
                 <div className="flex flex-col gap-3 border-b border-line px-4 py-3">
                   <p className="text-body font-medium">Text on the video</p>
                   <p className="text-meta text-t3">Drag the captions or the title in the preview. Drag the dot at its corner to resize.</p>
+                  <div>
+                    <p className="mb-2 text-label font-medium text-t2">Caption position</p>
+                    <div className="flex gap-2">
+                      {spots.map((x) => {
+                        const on = layout.cap ? near(layout.cap.x, 50) && near(layout.cap.y, x.y) : x.label === 'Middle' && gaming
+                        return <Button key={x.label} className="flex-1" variant={on ? 'primary' : 'secondary'} aria-pressed={on} onClick={() => placeCaption(x.label, x.y)}>{x.label}</Button>
+                      })}
+                    </div>
+                  </div>
                   {(['cap', 'hook'] as const).filter((k) => k === 'cap' || hook).map((k) => (
                     <div key={k}>
                       <div className="mb-2 flex justify-between text-label"><span className="font-medium text-t2">{k === 'cap' ? 'Caption size' : 'Title size'}</span><span className="font-mono">{Math.round((layout[k]?.scale ?? 1) * 100)}%</span></div>
@@ -393,8 +423,9 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
                       <span className="text-body font-medium">Gaming layout</span>
                       <Switch label="Gaming layout" checked={gaming} onChange={setGaming} />
                     </div>
-                    <p className="mt-1.5 text-meta text-t3">Game on top, camera below, for 9:16 clips. Captions sit between them. Drag either picture in the preview to move it.</p>
+                    <p className="mt-1.5 text-meta text-t3">Game on top, camera below (or swapped), for 9:16 clips. Captions sit between them. Drag either picture in the preview to move it.</p>
                   </div>
+                  {gaming && split ? <Button aria-pressed={!!split.top} onClick={swapPictures}><ArrowUpDown size={15} />Swap game and camera</Button> : null}
                   {gaming || savedLayout ? (
                     <div className="flex gap-2">
                       {gaming && split ? <Button className="flex-1" onClick={() => { saveSetting({ savedLayout: { split, cropX, zoom } }); toast({ kind: 'success', title: 'Layout saved', body: 'Use it here, or on many clips from My Clips, Change.' }) }}>Save as my layout</Button> : null}
@@ -446,6 +477,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
                 </div>
               </TabPanel>
               <TabPanel value="filters">
+                <SoundPanel clip={clip} />
                 <FilterPanel value={filters} onChange={setFilters} />
               </TabPanel>
               <TabPanel value="post">

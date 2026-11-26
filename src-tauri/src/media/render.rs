@@ -41,6 +41,32 @@ pub struct RenderOptions {
     /// Parts to remove, in seconds from the start of the clip.
     pub cuts: Vec<[f64; 2]>,
     pub filters: Filters,
+    /// Sound effects to mix in: file, start in the finished clip, volume.
+    pub sounds: Vec<(std::path::PathBuf, f64, f64)>,
+    /// Only matters with sound effects: a silent video needs an empty track under them.
+    pub has_audio: bool,
+}
+
+/// The longest any one effect plays.
+const SOUND_SECONDS: f64 = 6.0;
+
+/// Speech (or silence) with each effect delayed to its moment and laid over it.
+fn mix_graph(video: &str, speech_filters: &[String], o: &RenderOptions, length: f64) -> String {
+    let mut speech: Vec<String> = speech_filters.to_vec();
+    speech.push("aresample=48000".into());
+    let speech = if o.has_audio { format!("[0:a]{}[a0]", speech.join(",")) } else { format!("anullsrc=r=48000:cl=stereo,atrim=0:{length:.3}[a0]") };
+    let mut parts = vec![format!("[0:v]{video}[v]"), speech];
+    let mut inputs = String::from("[a0]");
+    for (i, (_, at, volume)) in o.sounds.iter().enumerate() {
+        parts.push(format!(
+            "[{n}:a]atrim=0:{SOUND_SECONDS},asetpts=PTS-STARTPTS,aresample=48000,volume={volume:.2},adelay={ms}:all=1[s{i}]",
+            n = i + 1,
+            ms = (at.max(0.0) * 1000.0).round() as u64
+        ));
+        inputs.push_str(&format!("[s{i}]"));
+    }
+    parts.push(format!("{inputs}amix=inputs={}:duration=first:normalize=0[a]", o.sounds.len() + 1));
+    parts.join(";")
 }
 
 impl RenderOptions {
@@ -90,8 +116,8 @@ fn split_graph(w: u32, h: u32, s: &Split, o: &RenderOptions) -> String {
         "split=2[g0][c0];\
          [g0]crop=w='min(iw,ih*{r:.6})/{z:.4}':h='min(ih,iw/{r:.6})/{z:.4}':x='(iw-out_w)*{p:.4}':y='(ih-out_h)*{gy:.4}',scale={w}:{game}:flags=lanczos,setsar=1[g];\
          [c0]crop=w='iw*{cw:.6}':h='ih*{ch:.6}':x='iw*{cx:.6}':y='ih*{cy:.6}',scale={w}:{face}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{face},setsar=1[c];\
-         [g][c]vstack,fps={fps},format=yuv420p",
-        z = o.zoom, gy = s.gy, cx = s.x, cy = s.y, cw = s.w, ch = s.h, fps = o.fps
+         {stack}vstack,fps={fps},format=yuv420p",
+        stack = if s.top { "[c][g]" } else { "[g][c]" }, z = o.zoom, gy = s.gy, cx = s.x, cy = s.y, cw = s.w, ch = s.h, fps = o.fps
     )
 }
 
@@ -151,17 +177,23 @@ pub fn build_args(input: &Path, start: f64, duration: f64, output: &Path, aspect
     let (seek, source, length) = (format!("{start:.3}"), input.display().to_string(), format!("{duration:.3}"));
     let mut graph = filter_graph(aspect, o)?;
     let mut audio: Vec<String> = Vec::new();
-    if o.cuts.is_empty() {
+    if o.cuts.is_empty() && o.sounds.is_empty() {
         a.extend(["-ss".into(), seek, "-i".into(), source, "-t".into(), length]);
     } else {
-        // Limit what is read (the output is shorter), then drop the cut parts and close the gaps.
+        // Limit what is read (the output is shorter, or more inputs follow).
         a.extend(["-ss".into(), seek, "-t".into(), length, "-i".into(), source]);
+    }
+    if !o.cuts.is_empty() {
+        // Drop the cut parts and close the gaps.
         let keep = super::cuts::keep_expr(&o.cuts);
         graph = format!("fps={},select='{keep}',setpts=N/FRAME_RATE/TB,{graph}", o.fps);
         audio.push(format!("aselect='{keep}',asetpts=N/SR/TB"));
     }
     audio.extend(voice_filters(&o.filters).map(String::from));
-    if !audio.is_empty() {
+    for (file, _, _) in &o.sounds {
+        a.extend(["-i".into(), file.display().to_string()]);
+    }
+    if o.sounds.is_empty() && !audio.is_empty() {
         a.extend(["-af".into(), audio.join(",")]);
     }
     let picture = video_filters(&o.filters);
@@ -174,7 +206,14 @@ pub fn build_args(input: &Path, start: f64, duration: f64, output: &Path, aspect
         }
         graph.push_str(&format!(",ass={name}"));
     }
-    a.extend(["-vf".into(), graph]);
+    if o.sounds.is_empty() {
+        a.extend(["-vf".into(), graph]);
+    } else {
+        let out = super::cuts::remap(&o.cuts, duration);
+        a.extend(["-filter_complex".into(), mix_graph(&graph, &audio, o, out)]);
+        a.extend(["-map", "[v]", "-map", "[a]", "-t"].map(String::from));
+        a.push(format!("{out:.3}"));
+    }
     let (crf, preset, cq) = match o.quality {
         Quality::Fast => ("26", "veryfast", "28"),
         Quality::Balanced => ("23", "medium", "24"),
@@ -227,7 +266,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn opts() -> RenderOptions {
-        RenderOptions { resolution: 1080, fps: 30, quality: Quality::Balanced, encoder: Encoder::X264, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None, cuts: Vec::new(), filters: Filters::default() }
+        RenderOptions { resolution: 1080, fps: 30, quality: Quality::Balanced, encoder: Encoder::X264, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None, cuts: Vec::new(), filters: Filters::default(), sounds: Vec::new(), has_audio: true }
     }
 
     #[test]
@@ -356,6 +395,44 @@ mod tests {
         assert!(pixels.chunks(3).all(|p| p.iter().max().unwrap() - p.iter().min().unwrap() < 12), "{pixels:?}");
     }
 
+    /// Real FFmpeg: a beep placed at 2 s over silence is heard there and not before, with and without cuts.
+    #[test]
+    fn real_ffmpeg_mixes_sound_effects() {
+        let Some(tools) = ff::locate(None) else { return };
+        let dir = std::env::temp_dir().join(format!("clipit-sfx-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (silent, mute, beep) = (dir.join("silent.mp4"), dir.join("mute.mp4"), dir.join("beep.wav"));
+        let make = |args: &[&str], out: &Path| assert!(ff::command(&tools.ffmpeg).args(["-hide_banner", "-loglevel", "error", "-y"]).args(args).arg(out).status().unwrap().success());
+        make(&["-f", "lavfi", "-i", "testsrc=size=640x360:rate=30", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t", "6", "-pix_fmt", "yuv420p"], &silent);
+        make(&["-f", "lavfi", "-i", "testsrc=size=640x360:rate=30", "-t", "6", "-pix_fmt", "yuv420p"], &mute);
+        make(&["-f", "lavfi", "-i", "sine=frequency=880:duration=1"], &beep);
+        let loudness = |file: &Path, from: &str| {
+            let out = ff::command(&tools.ffmpeg)
+                .args(["-hide_banner", "-ss", from, "-t", "0.6", "-i"])
+                .arg(file)
+                .args(["-vn", "-af", "volumedetect", "-f", "null", "-"])
+                .output()
+                .unwrap();
+            let text = String::from_utf8_lossy(&out.stderr).into_owned();
+            text.split("max_volume:").nth(1).and_then(|r| r.split_whitespace().next()?.parse::<f64>().ok()).unwrap()
+        };
+        for (src, has_audio, cuts) in [(&silent, true, vec![]), (&silent, true, vec![[0.5, 1.0]]), (&mute, false, vec![])] {
+            let mut o = opts();
+            o.resolution = 360;
+            o.sounds = vec![(beep.clone(), 2.0, 0.8), (beep.clone(), 3.5, 0.5)];
+            o.has_audio = has_audio;
+            o.cuts = cuts.clone();
+            let out = dir.join("mix.mp4");
+            let args = build_args(src, 0.0, 5.0, &out, "9:16", &o, None).unwrap();
+            run(&tools.ffmpeg, &args, 5.0, &Running::default(), |_| {}).unwrap();
+            let want = 5.0 - if cuts.is_empty() { 0.0 } else { 0.5 };
+            let got = probe::probe(&tools, &out).unwrap().duration_sec;
+            assert!((got - want).abs() < 0.3, "{got} wanted {want}");
+            assert!(loudness(&out, "2.1") > -30.0, "the effect is heard");
+            assert!(loudness(&out, "0.5") < -60.0, "and not before its moment");
+        }
+    }
+
     #[test]
     fn no_filter_leaves_the_command_as_before() {
         let args = build_args(Path::new("a.mp4"), 0.0, 5.0, Path::new("b.mp4"), "9:16", &opts(), None).unwrap();
@@ -380,7 +457,7 @@ mod tests {
         let mut o = opts();
         o.resolution = 720;
         o.crop_x = 100.0;
-        o.split = Some(Split { x: 0.0, y: 0.6, w: 0.3, h: 0.4, share: 0.35, gy: 0.5 });
+        o.split = Some(Split { x: 0.0, y: 0.6, w: 0.3, h: 0.4, share: 0.35, gy: 0.5, top: false });
         let out = dir.join("split.mp4");
         let args = build_args(&src, 0.0, 1.0, &out, "9:16", &o, None).unwrap();
         run(&tools.ffmpeg, &args, 1.0, &Running::default(), |_| {}).unwrap();
@@ -400,6 +477,14 @@ mod tests {
         let (top, bottom) = (pixel(game / 2), pixel(game + face / 2));
         assert!(top[2] > 180 && top[0] < 80, "top should be the blue game: {:?}", &top[..3]);
         assert!(bottom[0] > 180 && bottom[2] < 80, "bottom should be the red camera: {:?}", &bottom[..3]);
+        // Swapped, the camera is on top and the game below.
+        o.split = o.split.map(|s| Split { top: true, ..s });
+        let args = build_args(&src, 0.0, 1.0, &out, "9:16", &o, None).unwrap();
+        run(&tools.ffmpeg, &args, 1.0, &Running::default(), |_| {}).unwrap();
+        let (top, bottom) = (pixel(face / 2), pixel(face + game / 2));
+        assert!(top[0] > 180 && top[2] < 80, "top should now be the red camera: {:?}", &top[..3]);
+        assert!(bottom[2] > 180 && bottom[0] < 80, "bottom should now be the blue game: {:?}", &bottom[..3]);
+        assert_eq!(o.split.unwrap().seam().round(), 35.0);
         // Other shapes ignore the layout.
         assert!(!filter_graph("1:1", &o).unwrap().contains("vstack"));
     }
@@ -427,7 +512,7 @@ mod tests {
         assert!((res.duration_sec - 4.0).abs() < 0.3, "{}", res.duration_sec);
         assert!(res.has_audio);
         // The same together with the gaming layout.
-        o.split = Some(Split { x: 0.0, y: 0.6, w: 0.3, h: 0.4, share: 0.35, gy: 0.5 });
+        o.split = Some(Split { x: 0.0, y: 0.6, w: 0.3, h: 0.4, share: 0.35, gy: 0.5, top: false });
         let out = dir.join("cut-split.mp4");
         let args = build_args(&src, 2.0, 6.0, &out, "9:16", &o, None).unwrap();
         run(&tools.ffmpeg, &args, 4.0, &Running::default(), |_| {}).unwrap();

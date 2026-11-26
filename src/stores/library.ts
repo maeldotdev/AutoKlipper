@@ -62,6 +62,7 @@ interface LibraryStore {
   updateClip: (id: string, patch: Partial<Clip>) => void
   /** Post text written by the backend: shown, not saved again. */
   applyPost: (clipId: string, post: string | null) => void
+  applySounds: (clipId: string, sfx: Clip['sfx']) => void
   setCredit: (projectId: string, name: string) => Promise<void>
   /** Cut one clip in two at `atSec` (seconds in the source). Returns the new clip's id. */
   splitClip: (id: string, atSec: number) => string | null
@@ -145,7 +146,7 @@ function persist(p: Promise<unknown>, what: string) {
   })
 }
 
-const PATCH_KEYS = ['title', 'startSec', 'endSec', 'aspect', 'target', 'captions', 'exportStatus', 'cropX', 'zoom', 'track', 'split', 'hook', 'cuts', 'layout', 'filters', 'post'] as const
+const PATCH_KEYS = ['title', 'startSec', 'endSec', 'aspect', 'target', 'captions', 'exportStatus', 'cropX', 'zoom', 'track', 'split', 'hook', 'cuts', 'layout', 'filters', 'post', 'sfx'] as const
 const toPatch = (c: Partial<Clip>): ClipPatch =>
   Object.fromEntries(PATCH_KEYS.filter((k) => c[k] !== undefined).map((k) => [k, c[k]])) as ClipPatch
 
@@ -205,6 +206,8 @@ export const useLibrary = create<LibraryStore>((set, get) => ({
   },
 
   applyPost: (clipId, post) => set((s) => ({ clips: s.clips.map((c) => (c.id === clipId ? { ...c, post } : c)) })),
+
+  applySounds: (clipId, sfx) => set((s) => ({ clips: s.clips.map((c) => (c.id === clipId ? { ...c, sfx } : c)) })),
 
   setCredit: async (projectId, name) => {
     set((s) => ({ projects: s.projects.map((p) => (p.id === projectId ? { ...p, uploader: name.trim() || null } : p)) }))

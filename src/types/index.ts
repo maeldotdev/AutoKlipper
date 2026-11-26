@@ -56,6 +56,15 @@ export interface Clip {
   filters?: Filters | null
   /** Caption, hashtags and credit, ready to paste. */
   post?: string | null
+  /** Sound effects from the user's Sounds folder. */
+  sfx?: Sfx[] | null
+}
+
+/** One sound effect: file name, start in source seconds, volume 0..1. */
+export interface Sfx {
+  file: string
+  at: number
+  volume: number
 }
 
 /** Centre across and position down, 0..100 of the picture, and a size factor. */
@@ -86,6 +95,8 @@ export interface Split {
   share: number
   /** Up and down position of the game picture, 0..1. Matters when it is zoomed in. */
   gy?: number
+  /** Swapped: camera on top, game below. */
+  top?: boolean
 }
 
 export type JobStatus = 'queued' | 'running' | 'completed' | 'failed'

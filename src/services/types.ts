@@ -1,6 +1,16 @@
-import type { CaptionSegment, CaptionStyle, Clip, Job, LiveStream, Project } from '@/types'
+import type { CaptionSegment, CaptionStyle, Clip, Job, LiveStream, Project, Sfx } from '@/types'
 
-export type ClipPatch = Partial<Pick<Clip, 'title' | 'startSec' | 'endSec' | 'aspect' | 'target' | 'captions' | 'exportStatus' | 'cropX' | 'zoom' | 'track' | 'split' | 'hook' | 'cuts' | 'layout' | 'filters' | 'post'>>
+export type ClipPatch = Partial<Pick<Clip, 'title' | 'startSec' | 'endSec' | 'aspect' | 'target' | 'captions' | 'exportStatus' | 'cropX' | 'zoom' | 'track' | 'split' | 'hook' | 'cuts' | 'layout' | 'filters' | 'post' | 'sfx'>>
+
+export interface SoundService {
+  /** File names in the user's Sounds folder. */
+  list(): Promise<string[]>
+  folder(): Promise<string>
+  /** Full path of one sound, allowed for playback. */
+  file(name: string): Promise<string>
+  /** Choose sounds for a clip again. Saved by the backend. */
+  suggest(clipId: string): Promise<Sfx[] | null>
+}
 
 export interface AppPathsInfo {
   root: string

@@ -14,6 +14,7 @@ mod media_commands;
 mod notify;
 mod paths;
 mod posts;
+mod sound_commands;
 mod settings;
 mod state;
 mod tray;
@@ -54,6 +55,10 @@ pub fn run() {
             commands::choose_tool,
             posts::write_post,
             posts::set_credit,
+            sound_commands::list_sounds,
+            sound_commands::sounds_folder,
+            sound_commands::sound_file,
+            sound_commands::suggest_sounds,
             commands::list_projects,
             commands::create_project,
             commands::set_project_status,

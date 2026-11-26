@@ -66,3 +66,12 @@ export const tauriSystem: SystemService = {
   cleanStorage: (target) => invoke<number>('clean_storage', { target }),
   log: (level, message) => void invoke('frontend_log', { level, message }).catch(() => undefined),
 }
+
+export const tauriSounds: SoundService = {
+  list: () => invoke<string[]>('list_sounds'),
+  folder: () => invoke<string>('sounds_folder'),
+  file: (name) => invoke<string>('sound_file', { name }),
+  suggest: (clipId) => invoke<{ sfx: Sfx[] | null }>('suggest_sounds', { clipId }).then((c) => c.sfx),
+}
+import type { Sfx } from '@/types'
+import type { SoundService } from './types'

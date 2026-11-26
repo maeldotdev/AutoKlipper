@@ -131,6 +131,17 @@ pub struct Clip {
     /// Caption, hashtags and credit, ready to paste when posting.
     #[serde(default)]
     pub post: Option<String>,
+    /// Sound effects from the user's Sounds folder.
+    #[serde(default)]
+    pub sfx: Option<Vec<Sfx>>,
+}
+
+/// One sound effect: its file name, when it starts (source seconds) and how loud, 0..1.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Sfx {
+    pub file: String,
+    pub at: f64,
+    pub volume: f64,
 }
 
 /// A piece of on-screen text: centre across (0..100), position down (0..100) and size factor.
@@ -185,6 +196,9 @@ pub struct Split {
     /// Up and down position of the game picture, 0 top to 1 bottom.
     #[serde(default = "half")]
     pub gy: f64,
+    /// Swapped: the camera is on top and the game below.
+    #[serde(default)]
+    pub top: bool,
 }
 
 fn half() -> f64 {
@@ -192,6 +206,11 @@ fn half() -> f64 {
 }
 
 impl Split {
+    /// Where the two pictures meet, 0..100 down the video. Captions sit there by default.
+    pub fn seam(&self) -> f64 {
+        (if self.top { self.share } else { 1.0 - self.share }) * 100.0
+    }
+
     pub fn is_valid(&self) -> bool {
         let inside = |at: f64, len: f64| at >= 0.0 && len >= 0.05 && at + len <= 1.0001;
         inside(self.x, self.w) && inside(self.y, self.h) && (0.2..=0.5).contains(&self.share) && (0.0..=1.0).contains(&self.gy)
@@ -238,6 +257,11 @@ impl Clip {
                 return invalid("Filter strength must be between 0 and 1");
             }
         }
+        if let Some(list) = &self.sfx {
+            if list.len() > 20 || list.iter().any(|s| !crate::ai::sounds::valid_name(&s.file) || !s.at.is_finite() || s.at < 0.0 || !(0.0..=1.0).contains(&s.volume)) {
+                return invalid("The sound effects are not valid");
+            }
+        }
         if self.post.as_ref().is_some_and(|p| p.chars().count() > 3000) {
             return invalid("The post text is limited to 3000 characters");
         }
@@ -274,6 +298,8 @@ pub struct ClipPatch {
     pub filters: Option<Filters>,
     /// An empty text removes the post.
     pub post: Option<String>,
+    /// An empty list removes the sounds.
+    pub sfx: Option<Vec<Sfx>>,
 }
 
 impl ClipPatch {
@@ -294,6 +320,7 @@ impl ClipPatch {
         if let Some(v) = self.layout { c.layout = (v != Layout::default()).then_some(v) }
         if let Some(v) = self.filters { c.filters = (!v.is_off()).then_some(v) }
         if let Some(v) = self.post { c.post = (!v.trim().is_empty()).then_some(v) }
+        if let Some(v) = self.sfx { c.sfx = (!v.is_empty()).then_some(v) }
     }
 }
 

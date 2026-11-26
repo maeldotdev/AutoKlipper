@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type R
 import { SplitPicture, type FrameChange } from '@/components/editor/SplitLayout'
 import { Movable } from '@/components/caption/Movable'
 import { previewFilter } from '@/lib/filters'
+import { seam } from '@/lib/split'
 import { ASPECT_DIMS } from '@/lib/labels'
 import { clamp } from '@/lib/utils'
 import { FONT_STACKS } from '@/theme/captionPresets'
@@ -269,7 +270,7 @@ export function PreviewStage({
   const ownRef = useRef<HTMLVideoElement>(null)
   const sourceRef = (videoRef as RefObject<HTMLVideoElement | null> | undefined) ?? ownRef
   // Captions sit where the game and the camera meet, as in the export.
-  const captionStyle = stacked ? { ...style, posY: (1 - stacked.share) * 100 } : style
+  const captionStyle = stacked ? { ...style, posY: seam(stacked) } : style
   return (
     <Frame aspect={aspect}>
       {videoSrc ? (

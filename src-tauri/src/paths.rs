@@ -23,6 +23,8 @@ pub struct AppPaths {
     pub exports: PathBuf,
     /// Videos AutoKlipper downloaded from links. AutoKlipper owns these files.
     pub downloads: PathBuf,
+    /// Sound effects the user puts there themselves.
+    pub sounds: PathBuf,
 }
 
 impl AppPaths {
@@ -66,8 +68,9 @@ impl AppPaths {
             models: data.join("models"),
             exports: data.join("exports"),
             downloads: data.join("downloads"),
+            sounds: data.join("sounds"),
         };
-        for d in [&p.root, &p.logs, &p.cache, &p.temp, &p.models, &p.exports, &p.downloads] {
+        for d in [&p.root, &p.logs, &p.cache, &p.temp, &p.models, &p.exports, &p.downloads, &p.sounds] {
             std::fs::create_dir_all(d)?;
         }
         Ok(p)

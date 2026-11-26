@@ -160,6 +160,14 @@ export function AiPanel() {
           </div>
           <Switch label="Post captions" checked={s.postCaptions} onChange={(v) => s.set({ postCaptions: v })} />
         </div>
+        <div className="mt-4 flex items-start justify-between gap-4">
+          <div className="max-w-lg">
+            <p className="text-body font-medium">Sound effects on new clips</p>
+            <p className="mt-0.5 text-label text-t3">Uses only the files you put in your Sounds folder, chosen by Ollama when it is running, else by matching words to file names. Use sounds you are allowed to use.</p>
+            <Button size="sm" className="mt-2" onClick={() => void api.sounds.folder().then((p) => api.media.reveal(p))}>Open Sounds folder</Button>
+          </div>
+          <Switch label="Sound effects on new clips" checked={s.autoSounds} onChange={(v) => s.set({ autoSounds: v })} />
+        </div>
         <label className="mt-3 flex max-w-lg flex-col gap-1.5">
           <span className="text-label font-medium text-t2">Hashtags added to every post</span>
           <input value={s.postTags} maxLength={300} onChange={(e) => s.set({ postTags: e.target.value })} className="rounded-md border border-line bg-s2 px-3 py-2 text-body text-t1" />

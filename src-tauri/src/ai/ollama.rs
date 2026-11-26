@@ -64,6 +64,18 @@ fn post_prompt(title: &str, transcript: &str, language: &str) -> String {
     )
 }
 
+/// One JSON answer from the model, as text.
+pub fn answer(base: &str, model: &str, prompt: &str) -> AppResult<String> {
+    let body = json!({"model": model, "prompt": prompt, "stream": false, "format": "json", "options": {"temperature": 0.2}});
+    let mut res = agent(180)
+        .post(format!("{base}/api/generate"))
+        .header("content-type", "application/json")
+        .send(body.to_string())
+        .map_err(|e| crate::error::AppError::Invalid(format!("Ollama request failed: {e}")))?;
+    let v = parse(res.body_mut().as_reader())?;
+    Ok(v["response"].as_str().unwrap_or_default().to_string())
+}
+
 /// A caption and content hashtags for posting one clip.
 pub fn post(base: &str, model: &str, title: &str, transcript: &str, language: &str) -> AppResult<(String, Vec<String>)> {
     let prompt = post_prompt(title, transcript, language);

@@ -1,3 +1,5 @@
+import { tauriSounds } from './tauri'
+import type { SoundService } from './types'
 /*
  * Service boundary. Pages and stores talk to `api` only.
  * In the desktop app `api` is the Tauri backend (SQLite, settings file, logs).
@@ -81,9 +83,16 @@ const mockLive: LiveService = {
 }
 
 export const IS_MOCK_BACKEND = !isTauri()
+const mockSounds: SoundService = {
+  list: async () => [],
+  folder: async () => '',
+  file: async () => '',
+  suggest: async () => null,
+}
+
 export const api = IS_MOCK_BACKEND
-  ? { library: mockLibrary, system: mockSystem, media: mockMedia, ai: mockAi, live: mockLive }
-  : { library: tauriLibrary, system: tauriSystem, media: tauriMedia, ai: tauriAi, live: tauriLive }
+  ? { library: mockLibrary, system: mockSystem, media: mockMedia, ai: mockAi, live: mockLive, sounds: mockSounds }
+  : { library: tauriLibrary, system: tauriSystem, media: tauriMedia, ai: tauriAi, live: tauriLive, sounds: tauriSounds }
 
 export const GB = 1024 ** 3
 export const MOCK_USAGE = STORAGE_BREAKDOWN.map((s) => ({ id: s.id, label: s.label, bytes: s.gb * GB }))

@@ -93,7 +93,7 @@ export function TranscriptTimeline({ segments, duration, activeId, onPick }: { s
  * Clip editor timeline. Domain is absolute source seconds; handles trim in/out.
  */
 export function EditTimeline({
-  domainStart, domainEnd, inSec, outSec, onTrim, segments, peaks,
+  domainStart, domainEnd, inSec, outSec, onTrim, segments, peaks, marks,
 }: {
   domainStart: number
   domainEnd: number
@@ -103,6 +103,8 @@ export function EditTimeline({
   segments: CaptionSegment[]
   /** Real audio shape of the visible range; a placeholder pattern without it. */
   peaks?: number[] | null
+  /** Moments to flag, such as sound effects, in source seconds. */
+  marks?: { at: number; label: string }[]
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const seek = usePlayhead((s) => s.seek)
@@ -154,6 +156,18 @@ export function EditTimeline({
           >
             <span className="line-clamp-1">{s.words.map((w) => w.text).join(' ')}</span>
           </div>
+        ))}
+        {marks?.filter((m) => m.at >= domainStart && m.at <= domainEnd).map((m, i) => (
+          <button
+            key={`${m.label}-${m.at}-${i}`}
+            type="button"
+            title={m.label}
+            aria-label={`Sound effect ${m.label}`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => seek(m.at - inSec)}
+            className="absolute top-1 z-[3] size-3 -translate-x-1/2 rotate-45 rounded-[2px] bg-cyan"
+            style={{ left: `${pct(m.at)}%` }}
+          />
         ))}
         {(['in', 'out'] as const).map((w) => (
           <div

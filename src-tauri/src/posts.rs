@@ -4,7 +4,8 @@
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::ai::{post, transcript};
+use crate::ai::{post, sounds, transcript};
+use crate::{settings, sound_commands};
 use crate::db::models::{Clip, ClipPatch};
 use crate::db::repo;
 use crate::error::{AppError, AppResult};
@@ -25,23 +26,36 @@ fn write_one(state: &AppState, cfg: &post::Config, model: Option<&str>, clip_id:
     repo::update_clip(&*state.db()?, clip_id, ClipPatch { post: Some(text), ..Default::default() })
 }
 
-/// After clips are created, unless the user switched post captions off.
+/// After clips are created: sound effects (when the Sounds folder has files) and post text,
+/// each unless the user switched it off.
 pub fn write_in_background(app: &AppHandle, clip_ids: Vec<String>) {
     let app = app.clone();
     std::thread::spawn(move || {
         let state = app.state::<AppState>();
         let cfg = post::Config::load(&state.paths.settings_file);
-        if !cfg.enabled {
+        let effects = settings::load(&state.paths.settings_file).map_or(true, |s| s["autoSounds"] != false)
+            && !sounds::list(&state.paths.sounds).is_empty();
+        if !cfg.enabled && !effects {
             return;
         }
         let model = cfg.pick_model();
         for id in clip_ids {
-            match write_one(&state, &cfg, model.as_deref(), &id) {
-                Ok(c) => {
-                    let _ = app.emit("clip-post", json!({"clipId": c.id, "post": c.post}));
+            if effects {
+                match sound_commands::choose(&state, &cfg.base, model.as_deref(), &id) {
+                    Ok(c) => {
+                        let _ = app.emit("clip-sfx", json!({"clipId": c.id, "sfx": c.sfx}));
+                    }
+                    Err(e) => tracing::warn!("sound effects for a clip: {e}"),
                 }
-                // The clip may have been deleted in the meantime.
-                Err(e) => tracing::warn!("post text for a clip: {e}"),
+            }
+            if cfg.enabled {
+                match write_one(&state, &cfg, model.as_deref(), &id) {
+                    Ok(c) => {
+                        let _ = app.emit("clip-post", json!({"clipId": c.id, "post": c.post}));
+                    }
+                    // The clip may have been deleted in the meantime.
+                    Err(e) => tracing::warn!("post text for a clip: {e}"),
+                }
             }
         }
     });

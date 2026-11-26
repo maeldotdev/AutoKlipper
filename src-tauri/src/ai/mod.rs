@@ -7,4 +7,5 @@ pub mod highlights;
 pub mod ollama;
 pub mod post;
 pub mod reframe;
+pub mod sounds;
 pub mod transcript;

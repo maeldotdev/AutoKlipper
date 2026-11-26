@@ -89,6 +89,10 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE clips ADD COLUMN post TEXT;
     ALTER TABLE projects ADD COLUMN uploader TEXT;
     ",
+    // v8: sound effects placed on a clip.
+    "
+    ALTER TABLE clips ADD COLUMN sfx TEXT;
+    ",
 ];
 
 pub fn schema_version(c: &Connection) -> AppResult<u32> {

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+- Tagalog added to the spoken language list.
+- Gaming layout: a button swaps the game and the camera.
+- Caption position buttons: Top, Middle, Bottom.
+- Sound effects: put your own audio files in the Sounds folder and AutoKlipper places them on new clips. Move, remove, change volume, preview and export them in the Effects tab (was Filters).
+
 ## 0.3.2
 - A Stop button wherever a job shows its progress: downloads, transcription, clip finding, exports and AI setup.
 

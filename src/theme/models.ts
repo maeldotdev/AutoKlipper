@@ -19,6 +19,7 @@ export const WHISPER_MODELS: WhisperModel[] = [
 export const LANGUAGES = [
   { value: 'auto', label: 'Auto detect' },
   { value: 'en', label: 'English' },
+  { value: 'tl', label: 'Tagalog' },
   { value: 'es', label: 'Spanish' },
   { value: 'fr', label: 'French' },
   { value: 'de', label: 'German' },

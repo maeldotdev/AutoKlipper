@@ -63,3 +63,6 @@ export function splitSources(iw: number, ih: number, outW: number, outH: number,
   const face: Rect = [iw * s.x + (bw - fw) / 2, ih * s.y + (bh - fh) / 2, fw, fh]
   return { game, face, gameHeight }
 }
+
+/** Where the two pictures meet, 0..100 down the video. Mirrors `Split::seam` in the backend. */
+export const seam = (s: Split) => (s.top ? s.share : 1 - s.share) * 100

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
-import { fitBox, isFitted, moveBox, resizeBox, snap, splitSources } from '@/lib/split'
+import { fitBox, isFitted, moveBox, resizeBox, seam, snap, splitSources } from '@/lib/split'
 import type { Split } from '@/types'
 
 /** Redraw a canvas from the video every frame, so both halves stay exactly in step with it. */
@@ -57,13 +57,14 @@ export interface FrameChange {
   cropX?: number
 }
 
-/** The gaming layout as it will be exported: game on top, camera below. With `onChange`, each half
+/** The gaming layout as it will be exported: game on top, camera below, or swapped. With `onChange`, each half
     can be dragged to move what it shows. */
 export function SplitPicture({ videoRef, split, cropX, zoom, onChange }: { videoRef: RefObject<HTMLVideoElement | null>; split: Split; cropX: number; zoom: number; onChange?: (c: FrameChange) => void }) {
   const ref = useVideoPaint(videoRef, (g, v, c) => {
     const { game, face, gameHeight } = splitSources(v.videoWidth, v.videoHeight, c.width, c.height, split, cropX, zoom)
-    g.drawImage(v, ...game, 0, 0, c.width, gameHeight)
-    g.drawImage(v, ...face, 0, gameHeight, c.width, c.height - gameHeight)
+    const faceHeight = c.height - gameHeight
+    g.drawImage(v, ...game, 0, split.top ? faceHeight : 0, c.width, gameHeight)
+    g.drawImage(v, ...face, 0, split.top ? 0 : gameHeight, c.width, faceHeight)
   })
   const [dragging, setDragging] = useState<'game' | 'camera' | null>(null)
 
@@ -91,16 +92,19 @@ export function SplitPicture({ videoRef, split, cropX, zoom, onChange }: { video
   }
 
   const zone = 'no-drag absolute inset-x-0 z-[1] cursor-grab touch-none active:cursor-grabbing'
-  const cut = `${(1 - split.share) * 100}%`
+  const cut = seam(split)
+  // Each picture's area to drag: the one on top ends at the seam, the other starts there.
+  const gameArea = split.top ? { top: `${cut}%`, bottom: 0 } : { top: 0, height: `${cut}%` }
+  const cameraArea = split.top ? { top: 0, height: `${cut}%` } : { top: `${cut}%`, bottom: 0 }
   return (
     <>
       <canvas ref={ref} width={540} height={960} aria-hidden className="absolute inset-0 h-full w-full" />
       {onChange ? (
         <>
-          <div title="Drag to move the game" onPointerDown={drag('game')} className={`${zone} top-0`} style={{ height: cut }}>
+          <div title="Drag to move the game" onPointerDown={drag('game')} className={zone} style={gameArea}>
             {dragging === 'game' ? <Guides x={cropX === 50} y={false} /> : null}
           </div>
-          <div title="Drag to move the camera" onPointerDown={drag('camera')} className={`${zone} bottom-0 border-t border-white/25`} style={{ top: cut }}>
+          <div title="Drag to move the camera" onPointerDown={drag('camera')} className={`${zone} border-white/25 ${split.top ? 'border-b' : 'border-t'}`} style={cameraArea}>
             {dragging === 'camera' ? <Guides x={at(split.x, (1 - split.w) / 2)} y={at(split.y, (1 - split.h) / 2)} /> : null}
           </div>
         </>

@@ -17,6 +17,8 @@ export interface Settings {
   notifications: boolean
   /** Write a caption, hashtags and credit for every new clip. */
   postCaptions: boolean
+  /** Put sounds from the Sounds folder on new clips. */
+  autoSounds: boolean
   /** Hashtags added to every post. */
   postTags: string
   device: 'auto' | 'cpu' | 'gpu'
@@ -64,6 +66,7 @@ export const DEFAULT_SETTINGS: Settings = {
   startup: 'dashboard',
   notifications: true,
   postCaptions: true,
+  autoSounds: true,
   postTags: '#fyp #foryou #viral #shorts',
   device: 'auto',
   quality: 'balanced',

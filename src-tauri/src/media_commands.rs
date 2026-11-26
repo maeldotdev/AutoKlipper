@@ -168,7 +168,7 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
     } else {
         Encoder::X264
     };
-    let opts = RenderOptions { resolution: request.resolution, fps: request.fps, quality: request.quality, encoder, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None, cuts: Vec::new(), filters: Default::default() };
+    let opts = RenderOptions { resolution: request.resolution, fps: request.fps, quality: request.quality, encoder, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None, cuts: Vec::new(), filters: Default::default(), sounds: Vec::new(), has_audio: true };
     opts.validate()?;
 
     let out_dir: PathBuf = match request.out_dir.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
@@ -219,7 +219,7 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
                 let mut style = request.style.clone().unwrap_or_default();
                 // In the gaming layout captions sit where the game and the camera meet.
                 if let Some(s) = clip.split.filter(|_| clip.aspect == "9:16") {
-                    style.pos_y = (1.0 - s.share) * 100.0;
+                    style.pos_y = s.seam();
                 }
                 // Text the user dragged or resized on this clip wins over the style.
                 if let Some(t) = clip.layout.and_then(|l| l.cap) {
@@ -247,6 +247,18 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
             // The face path is in source seconds: move it onto the shortened timeline too.
             let track: Option<Vec<[f64; 2]>> = clip.track.as_ref().map(|t| t.iter().map(|p| [clip.start_sec + cuts::remap(&rel, p[0] - clip.start_sec), p[1]]).collect());
             framed.cuts = rel.clone();
+            // Effects inside the clip whose file is still there, moved onto the shortened timeline.
+            framed.sounds = clip
+                .sfx
+                .iter()
+                .flatten()
+                .filter(|s| s.at >= clip.start_sec && s.at < clip.end_sec)
+                .map(|s| (state.paths.sounds.join(&s.file), cuts::remap(&rel, s.at - clip.start_sec), s.volume))
+                .filter(|(f, _, _)| f.is_file())
+                .collect();
+            if !framed.sounds.is_empty() {
+                framed.has_audio = probe::probe(&tools, Path::new(src))?.has_audio;
+            }
             if let Some(path) = track.as_deref().filter(|t| !t.is_empty()) {
                 let info = probe::probe(&tools, Path::new(src))?;
                 let (w, h) = render::target_size(&clip.aspect, opts.resolution)?;
