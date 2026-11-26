@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 - Every new clip gets a post text: caption, hashtags and credit. Your Ollama model writes it when it is running; otherwise it comes from the words in the clip.
 - Windows pop-ups when clips are ready, an export ends or something fails. Clicking one opens AutoKlipper there.
 - Drag and resize the captions and the hook title on the video.
