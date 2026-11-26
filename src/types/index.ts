@@ -45,6 +45,10 @@ export interface Clip {
   track?: [number, number][] | null
   /** Gaming layout on vertical clips: game on top, camera below. */
   split?: Split | null
+  /** Headline at the top of the picture. */
+  hook?: string | null
+  /** Parts removed from the clip, [from, to] in source seconds. */
+  cuts?: [number, number][] | null
 }
 
 /** The camera box in the source picture (0..1) and its share of the output height. A share of 0 is off. */

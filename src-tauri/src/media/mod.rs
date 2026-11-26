@@ -1,4 +1,5 @@
 //! Phase 3: video engine. FFmpeg discovery, probing, rendering and the job queue.
+pub mod cuts;
 pub mod analyze;
 pub mod ffmpeg;
 pub mod job;

@@ -65,6 +65,8 @@ pub fn run() {
             commands::frontend_log,
             media_commands::ffmpeg_status,
             media_commands::probe_media,
+            media_commands::thumbnail,
+            media_commands::find_cuts,
             media_commands::export_clips,
             media_commands::cancel_job,
             media_commands::reveal_path,

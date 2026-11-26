@@ -1,4 +1,6 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { useState, useEffect, type CSSProperties, type ReactNode } from 'react'
+import { previewUrl } from '@/lib/native'
+import { api } from '@/services'
 import { Film } from 'lucide-react'
 import { PLATFORMS } from '@/lib/labels'
 import { cn, fmtDuration } from '@/lib/utils'
@@ -23,19 +25,47 @@ export function PlatformMark({ id, size = 24 }: { id: PlatformId | 'local'; size
   )
 }
 
-/** Placeholder thumbnail. Generated gradient, never a fake still from a video. */
+const stills = new Map<string, Promise<string | null>>()
+
+/** A real frame from the source video. Nothing is invented: no video, no picture. */
+function useStill(of?: { projectId: string; clipId?: string; at?: number }) {
+  const [src, setSrc] = useState<string | null>(null)
+  const key = of ? `${of.projectId}|${of.clipId ?? ''}|${of.at ?? ''}` : ''
+  useEffect(() => {
+    setSrc(null)
+    if (!of) return
+    let live = true
+    let got = stills.get(key)
+    if (!got) {
+      got = api.ai.thumbnail(of.projectId, of.clipId).then((path) => (path ? previewUrl(path) : null)).catch(() => null)
+      stills.set(key, got)
+      // A video that is not there yet may arrive later (a download): ask again next time.
+      void got.then((u) => u ?? stills.delete(key))
+    }
+    void got.then((u) => live && setSrc(u))
+    return () => {
+      live = false
+    }
+  }, [key])
+  return src
+}
+
+/** A frame from the video, over a generated gradient that stays when there is none. */
 export function Thumb({
-  hue, ratio = 16 / 9, duration, className, children,
+  hue, ratio = 16 / 9, duration, className, children, of,
 }: {
+  /** What to show a frame of. `at` changes when the frame should. */
+  of?: { projectId: string; clipId?: string; at?: number }
   hue: number
   ratio?: number
   duration?: number
   className?: string
   children?: ReactNode
 }) {
+  const still = useStill(of)
   return (
     <div className={cn('thumb flex items-center justify-center', className)} style={{ ['--h' as string]: hue, aspectRatio: ratio } as CSSProperties}>
-      <Film size={22} className="relative z-[1] text-white/35" aria-hidden />
+      {still ? <img src={still} alt="" className="absolute inset-0 z-[1] h-full w-full object-cover" /> : <Film size={22} className="relative z-[1] text-white/35" aria-hidden />}
       {duration !== undefined ? (
         <span className="absolute bottom-1.5 right-1.5 z-[1] rounded bg-black/60 px-1.5 py-px font-mono text-meta text-white">{fmtDuration(duration)}</span>
       ) : null}

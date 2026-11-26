@@ -12,6 +12,7 @@ import { fmtBytes, fmtDuration, fmtRelative, shortSource } from '@/lib/utils'
 import { useLibrary } from '@/stores/library'
 import { toast } from '@/stores/ui'
 import type { Project, ProjectStatus } from '@/types'
+import { ReviewDialog } from '@/components/ReviewDialog'
 
 /** How far the work on a processing project has got. A link is downloaded first, then transcribed. */
 function ProjectProgress({ id, className }: { id: string; className?: string }) {
@@ -38,6 +39,7 @@ export function Projects() {
   const [sort, setSort] = useState<'new' | 'old' | 'clips' | 'name'>('new')
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [del, setDel] = useState<Project | null>(null)
+  const [review, setReview] = useState<string | null>(null)
 
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -89,7 +91,7 @@ export function Projects() {
           {shown.map((p) => (
             <li key={p.id} className="panel group overflow-hidden transition-[border-color] duration-150 hover:border-line2">
               <button className="no-drag block w-full text-left" onClick={() => open(p)} aria-label={`Open ${p.title}`}>
-                <Thumb hue={p.hue} duration={p.duration} />
+                <Thumb hue={p.hue} duration={p.duration} of={p.sourcePath ? { projectId: p.id } : undefined} />
                 <div className="p-3.5 pb-2">
                   <p className="truncate text-section font-semibold">{p.title}</p>
                   <p className="mt-1 flex items-center gap-2 text-label text-t3"><PlatformMark id={p.platform} size={18} /><span className="truncate" title={p.sourceLabel}>{shortSource(p.sourceLabel)}</span></p>
@@ -99,6 +101,7 @@ export function Projects() {
               <div className="flex items-center gap-2 px-3.5 pb-3.5 pt-1">
                 <Badge tone={PROJECT_STATUS[p.status].tone}>{PROJECT_STATUS[p.status].label}</Badge>
                 <span className="text-label text-t2">{p.clipCount} clips</span>
+                {p.status === 'ready' && p.clipCount > 0 ? <Button variant="ghost" size="sm" onClick={() => setReview(p.id)}>Review</Button> : null}
                 <span className="ml-auto text-meta text-t3">{fmtRelative(p.createdAt)}</span>
                 <Button variant="ghost" size="icon-sm" aria-label={`Delete ${p.title}`} onClick={() => setDel(p)}><Trash2 size={14} /></Button>
               </div>
@@ -116,7 +119,7 @@ export function Projects() {
             <tbody>
               {shown.map((p) => (
                 <tr key={p.id} className="border-b border-line last:border-0 hover:bg-s2/60">
-                  <td className="px-4 py-2.5"><button className="no-drag flex items-center gap-3 text-left" onClick={() => open(p)}><Thumb hue={p.hue} className="w-14 rounded" /><span className="font-medium">{p.title}</span></button></td>
+                  <td className="px-4 py-2.5"><button className="no-drag flex items-center gap-3 text-left" onClick={() => open(p)}><Thumb hue={p.hue} of={p.sourcePath ? { projectId: p.id } : undefined} className="w-14 rounded" /><span className="font-medium">{p.title}</span></button></td>
                   <td className="px-3 text-t2">{PLATFORMS[p.platform].name}{p.sizeBytes ? `, ${fmtBytes(p.sizeBytes)}` : ''}</td>
                   <td className="px-3 font-mono text-label">{fmtDuration(p.duration)}</td>
                   <td className="px-3">{p.clipCount}</td>
@@ -129,6 +132,8 @@ export function Projects() {
           </table>
         </section>
       )}
+
+      {review ? <ReviewDialog projectId={review} onClose={() => setReview(null)} /> : null}
 
       <ConfirmDialog
         open={!!del}

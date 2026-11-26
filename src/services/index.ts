@@ -66,6 +66,8 @@ const mockAi: AiService = {
   setupFace: unavailable,
   trackFaces: unavailable,
   guessCamera: unavailable,
+  findCuts: unavailable,
+  thumbnail: async () => null,
 }
 
 const mockLive: LiveService = {

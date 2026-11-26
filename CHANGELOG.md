@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+- Clip and project cards show a real frame from the video.
+- Save a gaming layout and use it on other clips.
+- Change many clips at once in My Clips: shape, captions, gaming layout, hook title.
+- Review picks: watch each suggested clip, then keep or discard it.
+- Hook title across the top of a clip.
+- Remove long pauses and filler words from a clip, with a way to put them back.
+
 ## 0.1.3
 - Vertical clips can show the game on top and the camera below, with captions between them. Turn it on in the editor, Frame tab.
 - Project cards show a loading bar while processing.

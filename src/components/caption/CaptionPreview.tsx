@@ -223,7 +223,7 @@ export function Frame({
 
 /** Full preview: backdrop (loaded video or placeholder) + live caption layer. */
 export function PreviewStage({
-  aspect, segments, style, videoSrc, videoRef, cropX = 50, zoom = 1, track, trackOffset = 0, split, onFrame, hue = 222, onWordClick, staticTime,
+  aspect, segments, style, videoSrc, videoRef, cropX = 50, zoom = 1, track, trackOffset = 0, split, onFrame, hook, hue = 222, onWordClick, staticTime,
 }: {
   aspect: AspectRatio
   segments: CaptionSegment[]
@@ -239,6 +239,8 @@ export function PreviewStage({
   split?: Split | null
   /** Lets the user drag the game and the camera in the gaming layout. */
   onFrame?: (c: FrameChange) => void
+  /** Headline across the top, as the export draws it. */
+  hook?: string | null
   hue?: number
   onWordClick?: (segId: string, wordId: string) => void
   staticTime?: number
@@ -277,6 +279,9 @@ export function PreviewStage({
         </div>
       )}
       <CaptionLayer segments={segments} style={captionStyle} time={time} onWordClick={onWordClick} />
+      {hook?.trim() ? (
+        <p className="pointer-events-none absolute inset-x-[4%] top-[7%] z-[2] break-words text-center font-bold leading-tight text-white [font-size:4.3cqh] [paint-order:stroke_fill] [-webkit-text-stroke:0.8cqh_black]">{hook.trim()}</p>
+      ) : null}
     </Frame>
   )
 }

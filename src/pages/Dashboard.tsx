@@ -141,7 +141,7 @@ export function Dashboard() {
               {projects.slice(0, 5).map((p) => (
                 <li key={p.id}>
                   <Link to={`/clips?project=${p.id}`} className="no-drag flex items-center gap-3.5 rounded-md px-2 py-2.5 transition-colors duration-150 hover:bg-s2">
-                    <Thumb hue={p.hue} className="w-24 shrink-0 rounded-md" ratio={16 / 9} />
+                    <Thumb hue={p.hue} of={p.sourcePath ? { projectId: p.id } : undefined} className="w-24 shrink-0 rounded-md" ratio={16 / 9} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-body font-medium">{p.title}</p>
                       <p className="flex items-center gap-2 text-label text-t3">
@@ -212,7 +212,7 @@ export function Dashboard() {
               {clips.slice(0, 5).map((c) => (
                 <li key={c.id}>
                   <Link to={`/editor/${c.id}`} className="no-drag group block">
-                    <Thumb hue={c.hue} ratio={9 / 14} duration={c.endSec - c.startSec} className="rounded-md ring-1 ring-line transition-[box-shadow] duration-150 group-hover:ring-accent/60" />
+                    <Thumb hue={c.hue} of={{ projectId: c.projectId, clipId: c.id, at: c.startSec }} ratio={9 / 14} duration={c.endSec - c.startSec} className="rounded-md ring-1 ring-line transition-[box-shadow] duration-150 group-hover:ring-accent/60" />
                     <p className="mt-1.5 truncate text-body">{c.title}</p>
                     <p className="text-meta text-t3">{c.aspect} for {c.target === 'shorts' ? 'Shorts' : c.target === 'fb-reels' ? 'Facebook' : c.target === 'reels' ? 'Reels' : 'TikTok'}</p>
                   </Link>

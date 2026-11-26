@@ -221,6 +221,17 @@ pub fn build(segments: &[Segment], style: &Style, width: u32, height: u32) -> St
     out
 }
 
+/// A headline across the top of the picture for the whole clip.
+pub fn add_hook(ass: &mut String, hook: &str, width: u32, height: u32, duration: f64) {
+    let h = height as f64;
+    let tags = format!(
+        "{{\\an8\\pos({:.0},{:.0})\\fnSegoe UI\\b1\\fs{:.0}\\fsp0\\1c&HFFFFFF&\\3c&H000000&\\bord{:.1}\\shad0}}",
+        width as f64 / 2.0, h * 0.07, h * 0.043, h * 0.004
+    );
+    ass.push_str(&dialogue(0.0, duration, format!("{tags}{}", escape(hook.trim()))));
+    ass.push('\n');
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -240,6 +251,16 @@ mod tests {
         assert_eq!(ass_color("#ff8800", 1.0), "&H000088FF");
         assert_eq!(ass_color("#000000", 0.5), "&H80000000");
         assert_eq!(ass_color("red; {\\x}", 1.0), "&H00FFFFFF");
+    }
+
+    #[test]
+    fn hook_title_covers_the_clip_and_cannot_inject_tags() {
+        let mut out = build(&[], &style(|_| {}), 720, 1280);
+        add_hook(&mut out, "  {\\b0}Watch this ", 720, 1280, 12.5);
+        let e = events(&out);
+        assert_eq!(e.len(), 1);
+        assert!(e[0].starts_with("Dialogue: 0,0:00:00.00,0:00:12.50,") && e[0].ends_with("(/b0)Watch this"), "{}", e[0]);
+        assert!(e[0].contains("\\an8\\pos(360,90)"), "{}", e[0]);
     }
 
     #[test]

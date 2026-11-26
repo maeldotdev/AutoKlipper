@@ -139,7 +139,7 @@ function persist(p: Promise<unknown>, what: string) {
   })
 }
 
-const PATCH_KEYS = ['title', 'startSec', 'endSec', 'aspect', 'target', 'captions', 'exportStatus', 'cropX', 'zoom', 'track', 'split'] as const
+const PATCH_KEYS = ['title', 'startSec', 'endSec', 'aspect', 'target', 'captions', 'exportStatus', 'cropX', 'zoom', 'track', 'split', 'hook', 'cuts'] as const
 const toPatch = (c: Partial<Clip>): ClipPatch =>
   Object.fromEntries(PATCH_KEYS.filter((k) => c[k] !== undefined).map((k) => [k, c[k]])) as ClipPatch
 

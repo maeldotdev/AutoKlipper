@@ -93,7 +93,7 @@ impl LiveRequest {
         Clip {
             id: "check".into(), project_id: "check".into(), title: "check".into(), start_sec: 0.0, end_sec: 1.0,
             aspect: self.aspect.clone(), target: self.target.clone(), captions: "none".into(), export_status: "not-exported".into(),
-            score: 0, hue: 0, created_at: String::new(), export_path: None, reason: None, crop_x: 50.0, zoom: 1.0, track: None, split: None,
+            score: 0, hue: 0, created_at: String::new(), export_path: None, reason: None, crop_x: 50.0, zoom: 1.0, track: None, split: None, hook: None, cuts: None,
         }
         .validate()
     }
@@ -173,7 +173,7 @@ impl Store {
             hue,
             created_at: now,
             export_path: None,
-            reason: Some(reason), crop_x: 50.0, zoom: 1.0, track: None, split: None,
+            reason: Some(reason), crop_x: 50.0, zoom: 1.0, track: None, split: None, hook: None, cuts: None,
         }])?;
         Ok(pid)
     }

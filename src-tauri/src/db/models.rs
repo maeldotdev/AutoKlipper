@@ -110,6 +110,12 @@ pub struct Clip {
     /// Gaming layout: game on top, camera below. Vertical clips only.
     #[serde(default)]
     pub split: Option<Split>,
+    /// Headline drawn at the top of the picture.
+    #[serde(default)]
+    pub hook: Option<String>,
+    /// Parts removed from the clip, [from, to] in source seconds.
+    #[serde(default)]
+    pub cuts: Option<Vec<[f64; 2]>>,
 }
 
 /// Where the camera sits in the source picture (all 0..1) and how much of the output height it gets.
@@ -156,6 +162,14 @@ impl Clip {
                 return invalid("The face path is not valid");
             }
         }
+        if self.hook.as_ref().is_some_and(|h| h.chars().count() > 120) {
+            return invalid("The hook title is limited to 120 characters");
+        }
+        if let Some(c) = &self.cuts {
+            if c.len() > 400 || c.iter().any(|c| !c[0].is_finite() || !c[1].is_finite() || c[0] < 0.0 || c[1] <= c[0]) {
+                return invalid("The cut list is not valid");
+            }
+        }
         if self.split.is_some_and(|s| !s.is_valid()) {
             return invalid("The camera box is not valid");
         }
@@ -180,6 +194,10 @@ pub struct ClipPatch {
     pub track: Option<Vec<[f64; 2]>>,
     /// A share of 0 removes the gaming layout.
     pub split: Option<Split>,
+    /// An empty text removes the hook title.
+    pub hook: Option<String>,
+    /// An empty list restores everything.
+    pub cuts: Option<Vec<[f64; 2]>>,
 }
 
 impl ClipPatch {
@@ -195,6 +213,8 @@ impl ClipPatch {
         if let Some(v) = self.zoom { c.zoom = v }
         if let Some(v) = self.track { c.track = (!v.is_empty()).then_some(v) }
         if let Some(v) = self.split { c.split = (v.share > 0.0).then_some(v) }
+        if let Some(v) = self.hook { c.hook = (!v.trim().is_empty()).then_some(v) }
+        if let Some(v) = self.cuts { c.cuts = (!v.is_empty()).then_some(v) }
     }
 }
 

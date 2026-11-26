@@ -155,7 +155,7 @@ pub fn run(a: &Analyze, stem: &str, running: &Running, mut progress: impl FnMut(
             hue: (a.hue + i as i64 * 17) % 360,
             created_at: now.clone(),
             export_path: None,
-            reason: Some(h.reason), crop_x: 50.0, zoom: 1.0, track: None, split: None,
+            reason: Some(h.reason), crop_x: 50.0, zoom: 1.0, track: None, split: None, hook: None, cuts: None,
         })
         .collect();
     progress(99.0);

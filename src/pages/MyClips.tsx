@@ -15,6 +15,7 @@ import { useAi } from '@/stores/ai'
 import { IS_MOCK_BACKEND, api } from '@/services'
 import { toast } from '@/stores/ui'
 import type { AspectRatio, Clip, ExportStatus, TargetPlatform } from '@/types'
+import { ReviewDialog } from '@/components/ReviewDialog'
 
 export function MyClips() {
   const nav = useNavigate()
@@ -57,6 +58,30 @@ export function MyClips() {
     setSel([])
   }
   const [confirmDel, setConfirmDel] = useState(false)
+  const [review, setReview] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const savedLayout = useSettings((s) => s.savedLayout)
+  const [shape, setShape] = useState<'keep' | AspectRatio>('keep')
+  const [captionsTo, setCaptionsTo] = useState<'keep' | 'on' | 'off'>('keep')
+  const [layoutTo, setLayoutTo] = useState<'keep' | 'saved' | 'off'>('keep')
+  const [hookTo, setHookTo] = useState<'keep' | 'title' | 'off'>('keep')
+
+  /** Change the selected clips together. Only what was changed in the dialog is touched. */
+  const applyEdit = () => {
+    for (const id of sel) {
+      const c = clips.find((x) => x.id === id)
+      if (!c) continue
+      const patch: Partial<Clip> = {}
+      if (shape !== 'keep') patch.aspect = shape
+      if (captionsTo !== 'keep') patch.captions = captionsTo === 'on' ? 'generated' : 'none'
+      if (layoutTo === 'saved' && savedLayout) Object.assign(patch, { split: savedLayout.split, cropX: savedLayout.cropX, zoom: savedLayout.zoom, aspect: '9:16' })
+      if (layoutTo === 'off' && c.split?.share) patch.split = { ...c.split, share: 0 }
+      if (hookTo !== 'keep') patch.hook = hookTo === 'title' ? c.title.slice(0, 120) : ''
+      if (Object.keys(patch).length) updateClip(id, patch)
+    }
+    toast({ kind: 'success', title: `Updated ${sel.length} clip${sel.length === 1 ? '' : 's'}` })
+    setEditOpen(false)
+  }
 
   const project = projects.find((p) => p.id === projectId)
   const shown = useMemo(() => {
@@ -79,7 +104,8 @@ export function MyClips() {
       {project ? (
         <div className="flex items-center gap-3 rounded-lg border border-accent/30 bg-accent/[0.07] px-4 py-2.5 text-body">
           <span>Showing clips from <strong className="font-semibold">{project.title}</strong></span>
-          <Button size="sm" className="ml-auto" onClick={() => setParams({})}><X size={13} />Show all clips</Button>
+          <Button size="sm" variant="primary" className="ml-auto" disabled={!shown.length} onClick={() => setReview(true)}><Play size={13} />Review picks</Button>
+          <Button size="sm" onClick={() => setParams({})}><X size={13} />Show all clips</Button>
         </div>
       ) : null}
 
@@ -117,7 +143,7 @@ export function MyClips() {
             return (
               <li key={c.id} className={cn('panel group relative overflow-hidden transition-[border-color,box-shadow] duration-150', on ? 'border-accent shadow-[0_0_0_1px_var(--accent)]' : 'hover:border-line2')}>
                 <button className="no-drag block w-full" onClick={() => setPreview(c)} aria-label={`Preview ${c.title}`}>
-                  <Thumb hue={c.hue} ratio={9 / 12} duration={c.endSec - c.startSec} className="w-full">
+                  <Thumb hue={c.hue} of={{ projectId: c.projectId, clipId: c.id, at: c.startSec }} ratio={9 / 12} duration={c.endSec - c.startSec} className="w-full">
                     <span className="absolute left-2 top-2 z-[1] rounded bg-black/55 px-1.5 py-px font-mono text-meta text-white">{c.aspect}</span>
                     <span className="absolute inset-0 z-[1] flex items-center justify-center bg-black/30 opacity-0 transition-opacity duration-150 group-hover:opacity-100"><Play size={26} className="text-white" /></span>
                   </Thumb>
@@ -144,6 +170,7 @@ export function MyClips() {
         <div className="fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-line2 bg-s2 py-2.5 pl-4 pr-2.5 shadow-[var(--shadow-pop)]">
           <span className="text-body font-medium">{sel.length} selected</span>
           <Button variant="primary" onClick={() => setBatchOpen(true)}><Download size={15} />Export</Button>
+          <Button onClick={() => { setShape('keep'); setCaptionsTo('keep'); setLayoutTo('keep'); setHookTo('keep'); setEditOpen(true) }}><Pencil size={15} />Change</Button>
           <Button variant="danger" onClick={() => setConfirmDel(true)}><Trash2 size={15} />Delete</Button>
           <Button variant="ghost" size="icon" aria-label="Clear selection" onClick={() => setSel([])}><X size={16} /></Button>
         </div>
@@ -159,8 +186,8 @@ export function MyClips() {
       >
         {preview ? (
           <div className="flex flex-col items-center gap-4">
-            <Thumb hue={preview.hue} ratio={preview.aspect === '16:9' ? 16 / 9 : preview.aspect === '1:1' ? 1 : preview.aspect === '4:5' ? 4 / 5 : 9 / 16} className="max-h-[360px] rounded-md ring-1 ring-line" />
-            <p className="text-label text-t3">{preview.reason ? `Picked because: ${preview.reason}.` : 'Placeholder frame. Open the clip in the editor to play it from your footage.'}</p>
+            <Thumb hue={preview.hue} of={{ projectId: preview.projectId, clipId: preview.id, at: preview.startSec }} ratio={preview.aspect === '16:9' ? 16 / 9 : preview.aspect === '1:1' ? 1 : preview.aspect === '4:5' ? 4 / 5 : 9 / 16} className="h-[360px] rounded-md ring-1 ring-line" />
+            <p className="text-label text-t3">{preview.reason ? `Picked because: ${preview.reason}.` : 'Open the clip in the editor to play it.'}</p>
             <dl className="grid w-full grid-cols-3 gap-3 text-body">
               <div><dt className="text-meta text-t3">Highlight score</dt><dd className="font-mono">{preview.score}</dd></div>
               <div><dt className="text-meta text-t3">Captions</dt><dd>{CAPTION_STATUS[preview.captions]}</dd></div>
@@ -190,6 +217,25 @@ export function MyClips() {
           <div className="flex items-center justify-between"><span className="text-t2">Burn in captions</span><Switch label="Burn in captions" checked={burn} onChange={setBurn} /></div>
           <div className="flex items-center justify-between"><span className="text-t2">Include SRT subtitle file</span><Switch label="Include SRT subtitle file" checked={withSrt} onChange={setWithSrt} /></div>
           {IS_MOCK_BACKEND ? <p className="rounded-md border border-warn/25 bg-warn/10 px-3 py-2 text-label text-warn">Prototype: this simulates an export. No file is written.</p> : <p className="rounded-md border border-line bg-s2 px-3 py-2 text-label text-t2">Each clip is cut from its source video and reframed. Captions use your current Caption Studio style; clips with captions switched off stay clean. A clip with captions on but no transcript is refused.</p>}
+        </div>
+      </Dialog>
+
+      {review && projectId ? <ReviewDialog projectId={projectId} onClose={() => setReview(false)} /> : null}
+
+      <Dialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        title={`Change ${sel.length} clip${sel.length === 1 ? '' : 's'}`}
+        description="Anything left on Keep stays as it is."
+        width={460}
+        footer={<><Button onClick={() => setEditOpen(false)}>Cancel</Button><Button variant="primary" onClick={applyEdit}>Apply</Button></>}
+      >
+        <div className="flex flex-col gap-3.5 text-body">
+          <div className="flex items-center justify-between gap-4"><span className="text-t2">Shape</span><div className="w-52"><Select aria-label="Shape" value={shape} onChange={setShape} options={[{ value: 'keep', label: 'Keep' }, ...(Object.keys(ASPECT_DIMS) as AspectRatio[]).map((a) => ({ value: a, label: a }))]} /></div></div>
+          <div className="flex items-center justify-between gap-4"><span className="text-t2">Captions</span><div className="w-52"><Select aria-label="Captions" value={captionsTo} onChange={setCaptionsTo} options={[{ value: 'keep', label: 'Keep' }, { value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]} /></div></div>
+          <div className="flex items-center justify-between gap-4"><span className="text-t2">Gaming layout</span><div className="w-52"><Select aria-label="Gaming layout" value={layoutTo} onChange={setLayoutTo} options={[{ value: 'keep', label: 'Keep' }, ...(savedLayout ? [{ value: 'saved' as const, label: 'My saved layout' }] : []), { value: 'off', label: 'Off' }]} /></div></div>
+          <div className="flex items-center justify-between gap-4"><span className="text-t2">Hook title</span><div className="w-52"><Select aria-label="Hook title" value={hookTo} onChange={setHookTo} options={[{ value: 'keep', label: 'Keep' }, { value: 'title', label: "Use each clip's title" }, { value: 'off', label: 'Off' }]} /></div></div>
+          {savedLayout ? null : <p className="text-label text-t3">To put a gaming layout on many clips, save one first: open a clip, Frame tab, Save as my layout.</p>}
         </div>
       </Dialog>
 

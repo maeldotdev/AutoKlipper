@@ -77,6 +77,11 @@ const MIGRATIONS: &[&str] = &[
     "
     ALTER TABLE clips ADD COLUMN split TEXT;
     ",
+    // v6: hook title and the parts cut out of a clip.
+    "
+    ALTER TABLE clips ADD COLUMN hook TEXT;
+    ALTER TABLE clips ADD COLUMN cuts TEXT;
+    ",
 ];
 
 pub fn schema_version(c: &Connection) -> AppResult<u32> {

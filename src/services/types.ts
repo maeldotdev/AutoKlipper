@@ -1,6 +1,6 @@
 import type { CaptionSegment, CaptionStyle, Clip, Job, LiveStream, Project } from '@/types'
 
-export type ClipPatch = Partial<Pick<Clip, 'title' | 'startSec' | 'endSec' | 'aspect' | 'target' | 'captions' | 'exportStatus' | 'cropX' | 'zoom' | 'track' | 'split'>>
+export type ClipPatch = Partial<Pick<Clip, 'title' | 'startSec' | 'endSec' | 'aspect' | 'target' | 'captions' | 'exportStatus' | 'cropX' | 'zoom' | 'track' | 'split' | 'hook' | 'cuts'>>
 
 export interface AppPathsInfo {
   root: string
@@ -167,6 +167,9 @@ export interface AiService {
   trackFaces(clipId: string): Promise<[number, number][]>
   /** A first guess at the camera overlay: x, y, width, height. */
   guessCamera(clipId: string): Promise<[number, number, number, number]>
+  findCuts(clipId: string): Promise<{ cuts: [number, number][]; pauses: number; fillers: number; seconds: number }>
+  /** A cached frame for a card, or null when the video is not on this PC. */
+  thumbnail(projectId: string, clipId?: string): Promise<string | null>
 }
 
 export interface LiveRequest {

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { PlatformId } from '@/types'
+import type { PlatformId, Split } from '@/types'
 
 export type ThemeId = 'midnight' | 'abyss' | 'slate'
 export type Density = 'comfortable' | 'compact'
@@ -46,6 +46,8 @@ export interface Settings {
   checkUpdates: boolean
   /** Closing the window keeps the app running in the system tray (desktop app). */
   closeToTray: boolean
+  /** A gaming layout the user saved, to put on other clips. */
+  savedLayout: { split: Split; cropX: number; zoom: number } | null
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -80,6 +82,7 @@ export const DEFAULT_SETTINGS: Settings = {
   setupDone: false,
   checkUpdates: true,
   closeToTray: true,
+  savedLayout: null,
 }
 
 /** Real folder paths from the backend, set once at startup in the desktop app. */

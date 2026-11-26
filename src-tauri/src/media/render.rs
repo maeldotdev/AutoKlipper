@@ -38,6 +38,8 @@ pub struct RenderOptions {
     pub x_expr: Option<String>,
     /// Game on top, camera below.
     pub split: Option<Split>,
+    /// Parts to remove, in seconds from the start of the clip.
+    pub cuts: Vec<[f64; 2]>,
 }
 
 impl RenderOptions {
@@ -117,8 +119,17 @@ pub fn build_args(input: &Path, start: f64, duration: f64, output: &Path, aspect
     let mut a: Vec<String> = ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-progress", "pipe:1", "-nostats"]
         .iter().map(|s| s.to_string()).collect();
     // -ss before -i seeks fast; re-encoding below keeps the cut frame accurate.
-    a.extend(["-ss".into(), format!("{start:.3}"), "-i".into(), input.display().to_string(), "-t".into(), format!("{duration:.3}")]);
+    let (seek, source, length) = (format!("{start:.3}"), input.display().to_string(), format!("{duration:.3}"));
     let mut graph = filter_graph(aspect, o)?;
+    if o.cuts.is_empty() {
+        a.extend(["-ss".into(), seek, "-i".into(), source, "-t".into(), length]);
+    } else {
+        // Limit what is read (the output is shorter), then drop the cut parts and close the gaps.
+        a.extend(["-ss".into(), seek, "-t".into(), length, "-i".into(), source]);
+        let keep = super::cuts::keep_expr(&o.cuts);
+        graph = format!("fps={},select='{keep}',setpts=N/FRAME_RATE/TB,{graph}", o.fps);
+        a.extend(["-af".into(), format!("aselect='{keep}',asetpts=N/SR/TB")]);
+    }
     if let Some(name) = captions {
         if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
             return invalid("Unsafe caption file name.");
@@ -178,7 +189,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn opts() -> RenderOptions {
-        RenderOptions { resolution: 1080, fps: 30, quality: Quality::Balanced, encoder: Encoder::X264, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None }
+        RenderOptions { resolution: 1080, fps: 30, quality: Quality::Balanced, encoder: Encoder::X264, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None, cuts: Vec::new() }
     }
 
     #[test]
@@ -311,6 +322,36 @@ mod tests {
         assert!(bottom[0] > 180 && bottom[2] < 80, "bottom should be the red camera: {:?}", &bottom[..3]);
         // Other shapes ignore the layout.
         assert!(!filter_graph("1:1", &o).unwrap().contains("vstack"));
+    }
+
+    /// Cutting two seconds out of a six second clip leaves four, with sound.
+    #[test]
+    fn real_ffmpeg_removes_cut_parts() {
+        let Some(tools) = ff::locate(None) else { return };
+        let dir = std::env::temp_dir().join(format!("clipit-cuts-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("src.mp4");
+        assert!(ff::command(&tools.ffmpeg)
+            .args(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30", "-f", "lavfi", "-i", "sine=frequency=440", "-t", "10", "-pix_fmt", "yuv420p", "-shortest"])
+            .arg(&src)
+            .status()
+            .unwrap()
+            .success());
+        let mut o = opts();
+        o.resolution = 480;
+        o.cuts = vec![[1.0, 2.0], [4.0, 5.0]];
+        let out = dir.join("cut.mp4");
+        let args = build_args(&src, 2.0, 6.0, &out, "9:16", &o, None).unwrap();
+        run(&tools.ffmpeg, &args, 4.0, &Running::default(), |_| {}).unwrap();
+        let res = probe::probe(&tools, &out).unwrap();
+        assert!((res.duration_sec - 4.0).abs() < 0.3, "{}", res.duration_sec);
+        assert!(res.has_audio);
+        // The same together with the gaming layout.
+        o.split = Some(Split { x: 0.0, y: 0.6, w: 0.3, h: 0.4, share: 0.35, gy: 0.5 });
+        let out = dir.join("cut-split.mp4");
+        let args = build_args(&src, 2.0, 6.0, &out, "9:16", &o, None).unwrap();
+        run(&tools.ffmpeg, &args, 4.0, &Running::default(), |_| {}).unwrap();
+        assert!((probe::probe(&tools, &out).unwrap().duration_sec - 4.0).abs() < 0.3);
     }
 
     #[test]

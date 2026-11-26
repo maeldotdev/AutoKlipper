@@ -44,6 +44,8 @@ export const tauriAi: AiService = {
   setupFace: () => invoke<string>('ai_setup_face'),
   trackFaces: (clipId) => invoke<[number, number][]>('track_faces', { clipId }),
   guessCamera: (clipId) => invoke<[number, number, number, number]>('guess_camera', { clipId }),
+  findCuts: (clipId) => invoke('find_cuts', { clipId }),
+  thumbnail: (projectId, clipId) => invoke<string | null>('thumbnail', { projectId, clipId: clipId ?? null }),
 }
 
 export const tauriLive: LiveService = {

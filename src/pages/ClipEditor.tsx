@@ -93,6 +93,13 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
   const [tracking, setTracking] = useState(false)
   const [split, setSplit] = useState<Split | null>(clip.split?.share ? clip.split : null)
   const [guessing, setGuessing] = useState(false)
+  const savedLayout = useSettings((s) => s.savedLayout)
+  const saveSetting = useSettings((s) => s.set)
+  const [hook, setHook] = useState(clip.hook ?? '')
+  const [found, setFound] = useState<Awaited<ReturnType<typeof api.ai.findCuts>> | null>(null)
+  const [finding, setFinding] = useState(false)
+  const cut = clip.cuts?.length ? clip.cuts : null
+  const cutSeconds = (cut ?? []).reduce((n, [a, b]) => n + Math.max(0, Math.min(b, clip.endSec) - Math.max(a, clip.startSec)), 0)
   const gaming = !!split && clip.aspect === '9:16'
   const [pad, setPad] = useState(15)
   const [peaks, setPeaks] = useState<number[] | null>(null)
@@ -105,6 +112,30 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
     const t = setTimeout(() => updateClip(clip.id, { cropX, zoom }), 400)
     return () => clearTimeout(t)
   }, [cropX, zoom, clip.id, clip.cropX, clip.zoom, updateClip])
+  // Playback jumps over the parts that were cut, as the export will.
+  useEffect(() => {
+    if (!cut) return
+    return usePlayhead.subscribe((s) => {
+      if (!s.playing) return
+      const at = clip.startSec + s.time
+      const hit = cut.find(([a, b]) => at >= a && at < b - 0.05)
+      if (hit) s.seek(Math.min(s.duration, hit[1] - clip.startSec))
+    })
+  }, [cut, clip.startSec])
+
+  const findCuts = async () => {
+    setFinding(true)
+    try {
+      const f = await api.ai.findCuts(clip.id)
+      setFound(f)
+      if (!f.cuts.length) toast({ kind: 'info', title: 'Nothing to remove', body: 'No long pauses or filler words in this clip.' })
+    } catch (e) {
+      toast({ kind: 'warning', title: 'Pauses and filler words', body: String(e) })
+    } finally {
+      setFinding(false)
+    }
+  }
+
   // The camera box is saved shortly after dragging stops. A share of 0 switches the layout off.
   useEffect(() => {
     const saved = clip.split?.share ? clip.split : null
@@ -140,7 +171,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
   useSpaceToggle()
 
   const doExport = () => {
-    updateClip(clip.id, { cropX, zoom, ...(split ? { split } : {}) })
+    updateClip(clip.id, { cropX, zoom, hook: hook.trim(), ...(split ? { split } : {}) })
     exportClips([clip.id], { resolution: Number(quality), fps: Number(fps), burnCaptions: burn && real && captionsOn, writeSrt: srt && real && captionsOn })
     if (IS_MOCK_BACKEND) toast({ kind: 'info', title: 'Simulated export started', body: 'No file is written in the browser preview.' })
   }
@@ -241,7 +272,7 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
         <div className="flex min-h-0 flex-col gap-3">
           <section className="panel flex min-h-0 flex-1 flex-col overflow-hidden" aria-label="Preview">
             <div className="min-h-0 flex-1 bg-app/60 p-4">
-              <PreviewStage aspect={clip.aspect} segments={captionsOn ? segments : []} style={style} videoSrc={video?.src} videoRef={videoRef} cropX={cropX} zoom={zoom} split={split} onFrame={(c) => { if (c.split) setSplit(c.split); if (c.cropX !== undefined) setCropX(c.cropX) }} track={clip.track} trackOffset={clip.startSec} hue={clip.hue} onWordClick={(segId, wordId) => { setSelected({ segId, wordId }); setTab('captions') }} />
+              <PreviewStage aspect={clip.aspect} segments={captionsOn ? segments : []} style={style} videoSrc={video?.src} videoRef={videoRef} cropX={cropX} zoom={zoom} split={split} hook={hook} onFrame={(c) => { if (c.split) setSplit(c.split); if (c.cropX !== undefined) setCropX(c.cropX) }} track={clip.track} trackOffset={clip.startSec} hue={clip.hue} onWordClick={(segId, wordId) => { setSelected({ segId, wordId }); setTab('captions') }} />
             </div>
             <div className="shrink-0 border-t border-line px-4 py-3"><Transport /></div>
           </section>
@@ -278,6 +309,32 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
                   </div>
                   <Switch label="Captions on this clip" checked={captionsOn} onChange={(on) => updateClip(clip.id, { captions: on ? 'generated' : 'none' })} />
                 </div>
+                <div className="flex flex-col gap-2 border-b border-line px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-body font-medium">Hook title</span>
+                    <Switch label="Hook title" checked={!!hook} onChange={(on) => { const next = on ? clip.title.slice(0, 120) : ''; setHook(next); updateClip(clip.id, { hook: next }) }} />
+                  </div>
+                  {hook ? <Input aria-label="Hook title text" maxLength={120} value={hook} onChange={(e) => setHook(e.target.value)} onBlur={() => updateClip(clip.id, { hook: hook.trim() })} /> : <p className="text-meta text-t3">A headline at the top of the video.</p>}
+                </div>
+                <div className="flex flex-col gap-2 border-b border-line px-4 py-3">
+                  <p className="text-body font-medium">Pauses and filler words</p>
+                  {cut ? (
+                    <>
+                      <p className="text-meta text-t3">{cutSeconds.toFixed(1)} s removed. The preview and the export skip those parts.</p>
+                      <Button onClick={() => { updateClip(clip.id, { cuts: [] }); setFound(null) }}>Put them back</Button>
+                    </>
+                  ) : found?.cuts.length ? (
+                    <>
+                      <p className="text-meta text-t3">{found.pauses} long pause{found.pauses === 1 ? '' : 's'} and {found.fillers} filler word{found.fillers === 1 ? '' : 's'}: {found.seconds.toFixed(1)} s in all.</p>
+                      <div className="flex gap-2">
+                        <Button variant="primary" onClick={() => { updateClip(clip.id, { cuts: found.cuts }); setFound(null) }}>Remove them</Button>
+                        <Button variant="ghost" onClick={() => setFound(null)}>Leave them</Button>
+                      </div>
+                    </>
+                  ) : (
+                    <Button loading={finding} disabled={IS_MOCK_BACKEND || !real} onClick={() => void findCuts()}>Find them</Button>
+                  )}
+                </div>
                 <SegmentEditor selected={selected} onSelect={setSelected} />
               </TabPanel>
               <TabPanel value="style">
@@ -302,6 +359,12 @@ function Editor({ clipId, projectDuration }: { clipId: string; projectDuration: 
                     </div>
                     <p className="mt-1.5 text-meta text-t3">Game on top, camera below, for 9:16 clips. Captions sit between them. Drag either picture in the preview to move it.</p>
                   </div>
+                  {gaming || savedLayout ? (
+                    <div className="flex gap-2">
+                      {gaming && split ? <Button className="flex-1" onClick={() => { saveSetting({ savedLayout: { split, cropX, zoom } }); toast({ kind: 'success', title: 'Layout saved', body: 'Use it here, or on many clips from My Clips, Change.' }) }}>Save as my layout</Button> : null}
+                      {savedLayout ? <Button className="flex-1" onClick={() => { if (clip.aspect !== '9:16') updateClip(clip.id, { aspect: '9:16' }); setSplit(savedLayout.split); setCropX(savedLayout.cropX); setZoom(savedLayout.zoom) }}>Use my layout</Button> : null}
+                    </div>
+                  ) : null}
                   {gaming && split ? (
                     <>
                       <div>

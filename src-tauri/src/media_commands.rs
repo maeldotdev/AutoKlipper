@@ -6,6 +6,7 @@ use crate::ai::{ass, reframe, transcript};
 use crate::db::models::Job;
 use crate::db::repo;
 use crate::error::{invalid, AppError, AppResult};
+use crate::media::cuts;
 use crate::media::ffmpeg::{self, FfmpegStatus, Tools};
 use crate::media::probe::{self, MediaInfo};
 use crate::media::waveform;
@@ -42,6 +43,72 @@ pub async fn probe_media(app: AppHandle, state: State<'_, AppState>, path: Strin
     }
     tracing::info!(%path, secs = info.duration_sec, "media probed");
     Ok(info)
+}
+
+/// A real frame to show on a project or clip card. Cached; `None` when the video is not on this PC.
+#[tauri::command]
+pub async fn thumbnail(app: AppHandle, state: State<'_, AppState>, project_id: String, clip_id: Option<String>) -> AppResult<Option<String>> {
+    use std::hash::{Hash, Hasher};
+    use tauri::Manager;
+    let (source, at) = {
+        let db = state.db()?;
+        let project = repo::get_project(&db, &project_id)?;
+        let Some(source) = project.source_path.filter(|p| Path::new(p).is_file()) else { return Ok(None) };
+        let at = match &clip_id {
+            Some(id) => {
+                let c = repo::get_clip_pub(&db, id)?;
+                c.start_sec + (c.end_sec - c.start_sec) / 3.0
+            }
+            None => project.duration * 0.2,
+        };
+        (source, at.max(0.0))
+    };
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (&source, (at * 10.0) as u64).hash(&mut h);
+    let dir = state.paths.cache.join("thumbs");
+    let out = dir.join(format!("{:016x}.jpg", h.finish()));
+    if !out.is_file() {
+        let tools = tools(&state)?;
+        let (exe, target, folder) = (tools.ffmpeg.clone(), out.clone(), dir.clone());
+        let made = tauri::async_runtime::spawn_blocking(move || {
+            // One at a time: a page full of cards must not start dozens of FFmpegs.
+            static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+            let _turn = ONE.lock();
+            if target.is_file() {
+                return true;
+            }
+            if std::fs::create_dir_all(&folder).is_err() {
+                return false;
+            }
+            ffmpeg::command(&exe)
+                .args(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", &format!("{at:.2}"), "-i"])
+                .arg(&source)
+                .args(["-frames:v", "1", "-vf", "scale=480:-2", "-q:v", "5"])
+                .arg(&target)
+                .status()
+                .is_ok_and(|s| s.success())
+        })
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+        if !made || !out.is_file() {
+            return Ok(None);
+        }
+    }
+    if let Err(e) = app.asset_protocol_scope().allow_file(&out) {
+        tracing::warn!("thumbnail will not show: {e}");
+    }
+    Ok(Some(out.display().to_string()))
+}
+
+/// Pauses and filler words that could be removed from a clip. Nothing is changed here.
+#[tauri::command]
+pub fn find_cuts(state: State<'_, AppState>, clip_id: String) -> AppResult<cuts::Found> {
+    let db = state.db()?;
+    let clip = repo::get_clip_pub(&db, &clip_id)?;
+    let Some((_, _, all)) = repo::get_transcript(&db, &clip.project_id)? else {
+        return invalid("This video has no transcript yet, so there is nothing to judge pauses by.");
+    };
+    Ok(cuts::detect(&all, clip.start_sec, clip.end_sec))
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,7 +168,7 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
     } else {
         Encoder::X264
     };
-    let opts = RenderOptions { resolution: request.resolution, fps: request.fps, quality: request.quality, encoder, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None };
+    let opts = RenderOptions { resolution: request.resolution, fps: request.fps, quality: request.quality, encoder, crop_x: 50.0, zoom: 1.0, x_expr: None, split: None, cuts: Vec::new() };
     opts.validate()?;
 
     let out_dir: PathBuf = match request.out_dir.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
@@ -127,6 +194,11 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
                 return invalid(format!("\"{}\" starts after the end of its source video.", clip.title));
             }
             let dur = clip.end_sec - clip.start_sec;
+            let rel = cuts::relative(clip.cuts.as_deref().unwrap_or_default(), clip.start_sec, clip.end_sec);
+            let kept = cuts::remap(&rel, dur);
+            if kept < 0.5 {
+                return invalid(format!("Nearly all of \"{}\" is cut out. Restore some of it first.", clip.title));
+            }
             let out = out_dir.join(output_name(&clip.title, &clip.aspect, &clip.id));
             // Captions the user switched off for a clip stay off, whatever the batch setting.
             let wants = (request.burn_captions || request.write_srt) && clip.captions != "none";
@@ -134,14 +206,16 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
                 let Some((_, _, all)) = repo::get_transcript(&db, &project.id)? else {
                     return invalid(format!("\"{}\" has captions on but its video has no transcript. Transcribe it first, or turn captions off for the export.", clip.title));
                 };
-                transcript::slice(&all, clip.start_sec, clip.end_sec)
+                cuts::apply_words(&transcript::slice(&all, clip.start_sec, clip.end_sec), &rel)
             } else {
                 Vec::new()
             };
             let cwd = state.paths.temp.clone();
             let mut temp_files = Vec::new();
             let mut ass_name = None;
-            if request.burn_captions && !words.is_empty() {
+            let hook = clip.hook.as_deref().filter(|h| !h.trim().is_empty());
+            let burn = request.burn_captions && !words.is_empty();
+            if burn || hook.is_some() {
                 let mut style = request.style.clone().unwrap_or_default();
                 // In the gaming layout captions sit where the game and the camera meet.
                 if let Some(s) = clip.split.filter(|_| clip.aspect == "9:16") {
@@ -149,7 +223,11 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
                 }
                 let (w, h) = render::target_size(&clip.aspect, opts.resolution)?;
                 let name = format!("cap-{}.ass", uuid::Uuid::new_v4().simple());
-                std::fs::write(cwd.join(&name), ass::build(&words, &style, w, h))?;
+                let mut text = ass::build(if burn { &words } else { &[] }, &style, w, h);
+                if let Some(hook) = hook {
+                    ass::add_hook(&mut text, hook, w, h, kept);
+                }
+                std::fs::write(cwd.join(&name), text)?;
                 temp_files.push(cwd.join(&name));
                 ass_name = Some(name);
             }
@@ -159,7 +237,10 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
             framed.crop_x = clip.crop_x;
             framed.zoom = clip.zoom;
             framed.split = clip.split;
-            if let Some(path) = clip.track.as_deref().filter(|t| !t.is_empty()) {
+            // The face path is in source seconds: move it onto the shortened timeline too.
+            let track: Option<Vec<[f64; 2]>> = clip.track.as_ref().map(|t| t.iter().map(|p| [clip.start_sec + cuts::remap(&rel, p[0] - clip.start_sec), p[1]]).collect());
+            framed.cuts = rel.clone();
+            if let Some(path) = track.as_deref().filter(|t| !t.is_empty()) {
                 let info = probe::probe(&tools, Path::new(src))?;
                 let (w, h) = render::target_size(&clip.aspect, opts.resolution)?;
                 framed.x_expr = reframe::expression(path, clip.start_sec, info.width, info.height, w as f64 / h as f64, clip.zoom);
@@ -177,7 +258,7 @@ pub fn export_clips(app: AppHandle, state: State<'_, AppState>, request: ExportR
                 error: None,
                 simulated: false,
             };
-            tasks.push(Task { job, work: Work::Render { clip_id: clip.id.clone(), args, duration: dur, out_path: out, ffmpeg: tools.ffmpeg.clone(), cwd, temp_files, srt } });
+            tasks.push(Task { job, work: Work::Render { clip_id: clip.id.clone(), args, duration: kept, out_path: out, ffmpeg: tools.ffmpeg.clone(), cwd, temp_files, srt } });
         }
         for t in &tasks {
             repo::save_job(&db, &t.job)?;
