@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.1
+- New app and installer icon.
+
 ## Tray
 - Closing the window keeps AutoKlipper running in the system tray. Switch it off in Settings, General.
 - Opening AutoKlipper again brings back the running window.
