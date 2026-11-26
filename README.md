@@ -1,69 +1,60 @@
+<div align="center">
+
+<img src="public/favicon.svg" width="96" alt="AutoKlipper icon">
+
 # AutoKlipper
 
-Local-first AI video clipping studio for Windows. The desktop app imports, downloads, transcribes, clips and exports real video. The browser preview (`npm run dev`) uses sample data and processes nothing.
+**Turn long videos into captioned short clips, on your own PC.**
 
-## Download
-Get the Windows installer from [Releases](https://github.com/MaelPlays/AutoKlipper/releases/latest). The installer is not code-signed yet, so Windows may show "Unknown publisher"; check the file against `SHA256SUMS.txt`. Installed copies offer later versions inside the app. Support the project on [Ko-fi](https://ko-fi.com/maeldotdev).
+[![Latest release](https://img.shields.io/github/v/release/MaelPlays/AutoKlipper?label=release&color=4f8cff)](https://github.com/MaelPlays/AutoKlipper/releases/latest)
+[![Windows](https://img.shields.io/badge/platform-Windows-4f8cff)](https://github.com/MaelPlays/AutoKlipper/releases/latest)
+[![MIT licence](https://img.shields.io/badge/licence-MIT-4f8cff)](LICENSE)
 
-## Run
-```powershell
-npm install
-npm run dev          # browser preview at http://localhost:1420
-npm run tauri dev    # desktop app (needs Rust and the MSVC build tools)
-```
+[**Download for Windows**](https://github.com/MaelPlays/AutoKlipper/releases/latest) &nbsp;&nbsp; [Report a bug](https://github.com/MaelPlays/AutoKlipper/issues) &nbsp;&nbsp; [Support on Ko-fi](https://ko-fi.com/maeldotdev)
 
-## Checks
-```powershell
-npx tsc -b
-npm run lint
-npm run build
-cargo check --manifest-path src-tauri/Cargo.toml
-```
+<br>
 
-## Tools AutoKlipper needs
-FFmpeg (video) and yt-dlp (links) are not bundled yet. Install with `winget install Gyan.FFmpeg` and `winget install yt-dlp.yt-dlp`, or choose the .exe in Settings, Processing. Developers can point `CLIPIT_YTDLP` at a yt-dlp.exe.
+<img src="docs/screenshots/editor.png" alt="Clip editor with captions on the video, an editable transcript and a trim timeline">
 
-## End-to-end tests against the real desktop app
-```powershell
-npm run tauri dev -- --config scripts/debug-window.json
-node scripts/e2e-desktop.mjs  <path to any 20 s video>
-node scripts/e2e-phase4.mjs   <path to any video>      # needs network
-```
+</div>
 
-## Local AI
-Needs Python 3.9 to 3.13 (`winget install Python.Python.3.12`). In the app: Settings, AI, Set up local AI, then download a model. Phase 5 end-to-end test (see the header of the script for setup):
-```powershell
-node scripts/e2e-phase5.mjs <speech video> <models folder>
-```
+## What it does
 
-Phase 6 test with a locally generated stream (nothing on the internet is recorded):
-```powershell
-node scripts/e2e-phase6.mjs <speech video> <empty work folder>
-```
+- **Finds the moments.** Add a video file or paste a link. Local AI transcribes it and suggests highlight clips.
+- **Captions by default.** Added automatically, editable word by word, and you can switch them off.
+- **Fits every feed.** Export 9:16, 1:1, 4:5 or 16:9, with face tracking to keep people in frame.
+- **Clips livestreams.** Watch a stream and save highlights while it runs.
+- **Stays on your PC.** Transcription and editing happen locally. Free, with no account.
 
-## Moving AutoKlipper to another drive
-Settings, General moves large files only. To move everything (database, settings, logs, AI environment): close AutoKlipper, copy the contents of `%APPDATA%\app.clipit.desktop` to the new folder, then put `{ "root": "F:\\CLIPIT" }` in `%APPDATA%\app.clipit.desktop\location.json`.
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/dashboard.png" alt="Dashboard with recent projects and quick actions"></td>
+    <td width="50%"><img src="docs/screenshots/captions.png" alt="Caption Studio with style presets and a live preview"></td>
+  </tr>
+  <tr>
+    <td align="center">Dashboard</td>
+    <td align="center">Caption Studio</td>
+  </tr>
+</table>
 
-See ARCHITECTURE.md, DESIGN_SYSTEM.md, COMPONENT_GUIDELINES.md, DECISIONS.md, DEVELOPMENT_PHASES.md.
+<img src="docs/screenshots/clips.png" alt="My Clips library of vertical clips">
 
-Phase 7 test (face tracking and the editor; installs face tracking if missing). The first video shows one face moving left to right:
+## Install
 
-```powershell
-node scripts/e2e-phase7.mjs <face video> <video with sound> <empty work folder> <AI venv python>
-```
+1. Download the installer from [Releases](https://github.com/MaelPlays/AutoKlipper/releases/latest) and run it.
+2. Follow the first-run setup. It shows what to install for FFmpeg, yt-dlp and Python, which are free.
+3. Add a video and generate clips.
 
-## Installer
+Windows may show "Unknown publisher" because the installer is not code-signed. You can check your download against `SHA256SUMS.txt` on the release page. Later versions are offered inside the app.
 
-```powershell
-npm run notices
-```
+Only clip videos you have the right to use, and follow each platform's terms.
 
-```powershell
-npx tauri build
-```
+## Contribute
 
-The installer is written to `src-tauri/target/release/bundle/nsis/`.
+Found a bug or have an idea? [Open an issue](https://github.com/MaelPlays/AutoKlipper/issues). Pull requests are welcome; start with the [development guide](docs/DEVELOPMENT.md).
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE). Third-party tools and models keep their own licences, see [RELEASE_GUIDE.md](RELEASE_GUIDE.md).
+[MIT](LICENSE). Free to use. If it helps you, [a Ko-fi tip](https://ko-fi.com/maeldotdev) keeps it going. Third-party tools and models keep their [own licences](RELEASE_GUIDE.md).
+
+<sub>Screenshots show demo recordings made for this page.</sub>
