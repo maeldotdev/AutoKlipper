@@ -64,10 +64,10 @@ fn version_of(p: &Path) -> Option<String> {
 
 fn supported(version: &str) -> bool {
     let mut n = version.split('.').map(|x| x.parse::<u32>().unwrap_or(0));
-    matches!((n.next(), n.next()), (Some(3), Some(m)) if (9..=13).contains(&m))
+    matches!((n.next(), n.next()), (Some(3), Some(m)) if (11..=13).contains(&m))
 }
 
-/// A system Python able to create the environment (3.9 to 3.13).
+/// A system Python able to create the environment (3.11 to 3.13).
 pub fn system_python() -> Option<(PathBuf, String)> {
     let mut found: Vec<PathBuf> = Vec::new();
     let exe = if cfg!(windows) { "python.exe" } else { "python3" };
@@ -75,11 +75,16 @@ pub fn system_python() -> Option<(PathBuf, String)> {
         found.extend(std::env::split_paths(&path).map(|d| d.join(exe)));
     }
     if let Some(local) = std::env::var_os("LOCALAPPDATA") {
-        for minor in (9..=13).rev() {
+        for minor in (11..=13).rev() {
             found.push(PathBuf::from(&local).join("Programs").join("Python").join(format!("Python3{minor}")).join(exe));
         }
     }
     found.into_iter().filter(|p| p.is_file()).find_map(|p| version_of(&p).filter(|v| supported(v)).map(|v| (p, v)))
+}
+
+/// True when an environment folder is there but its Python is too old or broken, so setup has to start it over.
+pub fn needs_rebuild(venv: &Path) -> bool {
+    venv.exists() && !version_of(&venv_python(venv)).is_some_and(|v| supported(&v))
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -127,7 +132,9 @@ pub fn status(ai_dir: &Path, models_root: &Path) -> AiStatus {
     }
     if let Some(py) = python(ai_dir) {
         if let Ok(out) = ffmpeg::command(&py).arg(script_path(ai_dir)).arg("check").output() {
-            if let Ok(j) = serde_json::from_slice::<Value>(&out.stdout) {
+            // An environment made with an older Python counts as not set up, so the setup button comes back.
+            let json = serde_json::from_slice::<Value>(&out.stdout).ok();
+            if let Some(j) = json.filter(|j| j["python"].as_str().is_some_and(supported)) {
                 s.python_found = true;
                 s.python_version = j["python"].as_str().map(String::from);
                 s.faster_whisper = j["fasterWhisper"].as_str().map(String::from);
@@ -147,8 +154,16 @@ mod tests {
 
     #[test]
     fn only_supported_python_versions_are_used() {
-        assert!(supported("3.12.10") && supported("3.9.0") && supported("3.13.1"));
-        assert!(!supported("3.8.10") && !supported("3.14.0") && !supported("2.7.18") && !supported("junk"));
+        assert!(supported("3.12.10") && supported("3.11.0") && supported("3.13.1"));
+        assert!(!supported("3.10.11") && !supported("3.9.0") && !supported("3.14.0") && !supported("2.7.18") && !supported("junk"));
+    }
+
+    #[test]
+    fn only_a_present_but_unusable_environment_is_rebuilt() {
+        let d = std::env::temp_dir().join(format!("clipit-venv-{}", uuid::Uuid::new_v4()));
+        assert!(!needs_rebuild(&d));
+        std::fs::create_dir_all(&d).unwrap();
+        assert!(needs_rebuild(&d));
     }
 
     #[test]

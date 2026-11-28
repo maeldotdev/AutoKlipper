@@ -62,7 +62,7 @@ export function AiPanel() {
               {loading && !status ? <Badge>Checking</Badge> : status?.ready ? <Badge tone="success"><Check size={11} />Ready</Badge> : <Badge tone="warning">Not set up</Badge>}
               {status?.fasterWhisper ? <span className="font-mono text-meta text-t3">faster-whisper {status.fasterWhisper}</span> : null}
               {status ? <span className="text-meta text-t3">{status.gpus > 0 ? 'NVIDIA GPU available' : 'Runs on the CPU'}</span> : null}
-              {status && !status.pythonFound ? <span className="text-meta text-bad">Python 3.9 to 3.13 is needed: winget install Python.Python.3.12</span> : null}
+              {status && !status.pythonFound ? <span className="text-meta text-bad">Python 3.11 to 3.13 is needed: winget install Python.Python.3.12</span> : null}
             </p>
           </div>
           <div className="flex shrink-0 gap-2">

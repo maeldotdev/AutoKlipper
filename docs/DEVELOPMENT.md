@@ -21,12 +21,12 @@ cargo check --manifest-path src-tauri/Cargo.toml
 FFmpeg (video) and yt-dlp (links) are not bundled yet. Install with `winget install Gyan.FFmpeg` and `winget install yt-dlp.yt-dlp`, or choose the .exe in Settings, Processing. Developers can point `CLIPIT_YTDLP` at a yt-dlp.exe.
 
 ## Local AI
-Needs Python 3.9 to 3.13 (`winget install Python.Python.3.12`). In the app: Settings, AI, Set up local AI, then download a model.
+Needs Python 3.11 to 3.13 (`winget install Python.Python.3.12`). In the app: Settings, AI, Set up local AI, then download a model.
 
 The packages are locked with a hash for each file in `src-tauri/ai/requirements/`. To change a version, edit the `.in` file, delete the matching `.txt`, and run this there (for `face`, add `-c base.txt`; for `pip`, use `pip.in`):
 
 ```powershell
-uv pip compile base.in --universal --python-version 3.9 --generate-hashes --only-binary :all: -o base.txt
+uv pip compile base.in --universal --python-version 3.11 --custom-compile-command "see docs/DEVELOPMENT.md" --generate-hashes --only-binary :all: -o base.txt
 ```
 
 ## Moving AutoKlipper to another drive

@@ -62,14 +62,18 @@ pub async fn ai_status(state: State<'_, AppState>) -> AppResult<AiStatus> {
 #[tauri::command]
 pub fn ai_setup(app: AppHandle, state: State<'_, AppState>) -> AppResult<String> {
     let Some((system, _)) = env::system_python() else {
-        return invalid("Python 3.9 to 3.13 is needed first. Install it with: winget install Python.Python.3.12");
+        return invalid("Python 3.11 to 3.13 is needed first. Install it with: winget install Python.Python.3.12");
     };
     let dir = ai_dir(&state);
     let venv = env::venv_dir(&dir);
     let py = env::venv_python(&venv);
     env::write_script(&dir)?;
+    let mut create = vec!["-m".into(), "venv".into(), venv.display().to_string()];
+    if env::needs_rebuild(&venv) {
+        create.push("--clear".into());
+    }
     let steps = vec![
-        (system, vec!["-m".into(), "venv".into(), venv.display().to_string()]),
+        (system, create),
         (py.clone(), env::install_args(&dir, "pip.txt")),
         (py, env::install_args(&dir, "base.txt")),
     ];

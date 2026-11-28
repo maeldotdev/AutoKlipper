@@ -1,6 +1,6 @@
 [package]
 name = "clipit"
-version = "0.5.0"
+version = "0.6.0"
 description = "AutoKlipper - local-first AI video clipping studio"
 authors = ["maeldotdev"]
 license = "MIT"

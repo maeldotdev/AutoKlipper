@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.0
+- Local AI now needs Python 3.11 to 3.13. This drops old package versions with known security problems. If your local AI was set up with Python 3.9 or 3.10, install a newer Python and run Set up local AI again.
+
 ## 0.5.0
 - More clips: a button on a saved project finds new clips from moments that have none yet. Your clips stay, and the saved transcript is reused.
 
