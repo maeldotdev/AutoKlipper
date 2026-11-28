@@ -523,7 +523,7 @@ mod tests {
             (24.0, "okay back to the spreadsheet for a while now."),
         ]);
         let loud: Vec<f32> = (0..70).map(|i| if (16..44).contains(&i) { -8.0 } else { -32.0 }).collect();
-        let o = highlights::Options { min_len: 6.0, max_len: 14.0, count: 3, moments: vec![], sensitivity: 60 };
+        let o = highlights::Options { min_len: 6.0, max_len: 14.0, count: 3, moments: vec![], sensitivity: 60, taken: vec![] };
         // At t=15 the excited part is still going.
         assert!(new_moments(&segs[..2], &loud[..30], 15.0, &[], &o, 90.0).is_empty());
         let found = new_moments(&segs, &loud, 34.0, &[], &o, 90.0);
@@ -550,7 +550,7 @@ mod tests {
             transcriber,
             segment_sec: 4,
             buffer_sec: 40,
-            options: highlights::Options { min_len: 6.0, max_len: 16.0, count: 3, moments: vec![], sensitivity: 80 },
+            options: highlights::Options { min_len: 6.0, max_len: 16.0, count: 3, moments: vec![], sensitivity: 80, taken: vec![] },
             auto_clip: true,
         }
     }

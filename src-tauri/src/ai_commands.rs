@@ -116,6 +116,9 @@ pub struct AnalyzeRequest {
     pub speakers: bool,
     pub ollama_model: Option<String>,
     pub concurrency: usize,
+    /// Add clips to a project that already has some, without repeating their moments.
+    #[serde(default)]
+    pub more: bool,
 }
 
 /// Transcribe a project's video, pick highlights and create the clips.
@@ -134,12 +137,21 @@ pub fn analyze_project(app: AppHandle, state: State<'_, AppState>, request: Anal
     let (python, script) = helper(&state)?;
     let models = models_root(&state);
     let model_dir = env::model_dir(&models, &request.model);
-    if !model_dir.join("model.bin").is_file() {
+    let project = repo::get_project(&*state.db()?, &request.project_id)?;
+    if project.status == "processing" {
+        return invalid("This project is still being worked on.");
+    }
+    let (mut taken, mut saved) = (Vec::new(), None);
+    if request.more {
+        let db = state.db()?;
+        taken = repo::list_clips(&db)?.into_iter().filter(|c| c.project_id == project.id).map(|c| (c.start_sec, c.end_sec)).collect();
+        saved = repo::get_transcript(&db, &project.id)?.filter(|t| !t.2.is_empty()).map(|(language, _, segments)| (language, segments, project.duration));
+    }
+    if saved.is_none() && !model_dir.join("model.bin").is_file() {
         return invalid(format!("The {} model is not downloaded yet. Download it in Settings, AI.", request.model));
     }
     let tools = ffmpeg::locate(settings::load(&state.paths.settings_file)?["ffmpegPath"].as_str())
         .ok_or_else(|| AppError::Invalid("FFmpeg was not found. Install it or choose it in Settings, Processing.".into()))?;
-    let project = repo::get_project(&*state.db()?, &request.project_id)?;
     let Some(source) = project.source_path.clone().map(PathBuf::from).filter(|p| p.is_file()) else {
         return invalid("This project has no video file on this PC.");
     };
@@ -162,16 +174,19 @@ pub fn analyze_project(app: AppHandle, state: State<'_, AppState>, request: Anal
         model_name: request.model.clone(),
         language: request.language.clone(),
         speaker_dir,
-        options: request.options,
+        hue: project.hue + taken.len() as i64 * 17,
+        options: highlights::Options { taken, ..request.options },
+        keep: request.more,
+        transcript: saved,
         aspect: request.aspect,
         target: request.target,
         captions: request.captions,
-        hue: project.hue,
         ollama_model: request.ollama_model.filter(|m| !m.trim().is_empty()),
         temp: state.paths.temp.clone(),
     };
     repo::set_project_status(&*state.db()?, &project.id, "processing")?;
-    let job = new_job(format!("Transcribe and find highlights: {}", project.title), "transcribe", project.title);
+    let what = if request.more { "Find more clips" } else { "Transcribe and find highlights" };
+    let job = new_job(format!("{what}: {}", project.title), "transcribe", project.title);
     let extra = Extra { project_id: Some(project.id), project_status: Some("processing".into()), ..Default::default() };
     submit(&app, &state, job, Work::Analyze(Box::new(work)), extra, request.concurrency)
 }

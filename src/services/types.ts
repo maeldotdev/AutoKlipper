@@ -158,6 +158,8 @@ export interface AnalyzeRequest {
   speakers: boolean
   ollamaModel: string | null
   concurrency: number
+  /** Keep the project's clips and add ones from other moments. */
+  more: boolean
 }
 export interface TranscriptDoc {
   language: string

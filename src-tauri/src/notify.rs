@@ -13,7 +13,11 @@ fn wanted(app: &AppHandle) -> bool {
 
 /// "1 clip is ready", "3 clips are ready".
 pub fn ready_text(n: usize) -> String {
-    if n == 1 { "1 clip is ready".into() } else { format!("{n} clips are ready") }
+    match n {
+        0 => "No new moments left".into(),
+        1 => "1 clip is ready".into(),
+        _ => format!("{n} clips are ready"),
+    }
 }
 
 /// `route` is the page to open on click, such as `/clips?project=abc`.

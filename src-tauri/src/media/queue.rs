@@ -97,7 +97,7 @@ impl Work {
             Work::Download { project_id, .. } => Extra { project_id: Some(project_id.clone()), project_status: Some("failed".into()), ..Default::default() },
             Work::Tool { .. } => Extra::default(),
             // The video is fine; only the analysis did not happen.
-            Work::Analyze(a) => Extra { project_id: Some(a.project_id.clone()), project_status: Some("draft".into()), ..Default::default() },
+            Work::Analyze(a) => Extra { project_id: Some(a.project_id.clone()), project_status: Some(a.idle_status().into()), ..Default::default() },
         }
     }
 
@@ -106,7 +106,7 @@ impl Work {
             Work::Render { clip_id, .. } => set_clip(app, clip_id, "not-exported", None),
             Work::Download { project_id, .. } => set_project_status(app, project_id, "failed"),
             Work::Tool { .. } => {}
-            Work::Analyze(a) => set_project_status(app, &a.project_id, "draft"),
+            Work::Analyze(a) => set_project_status(app, &a.project_id, a.idle_status()),
         }
     }
 }
@@ -263,7 +263,7 @@ impl Queue {
                             }
                         }
                     }
-                    Work::Analyze(a) => set_project_status(app, &a.project_id, "draft"),
+                    Work::Analyze(a) => set_project_status(app, &a.project_id, a.idle_status()),
                 }
                 if cancelled {
                     tracing::info!(job = %job.id, "job cancelled");
@@ -358,8 +358,13 @@ fn run_analyze(app: &AppHandle, job: &mut Job, a: &Analyze, running: &Running) -
     let state = app.state::<AppState>();
     let db = state.db().map_err(|e| e.to_string())?;
     let store = || -> crate::error::AppResult<()> {
-        repo::save_transcript(&db, &a.project_id, &result.language, &a.model_name, &result.segments)?;
-        repo::delete_unexported_clips(&db, &a.project_id)?;
+        // A reused transcript is left alone: it may hold the user's corrections.
+        if a.transcript.is_none() {
+            repo::save_transcript(&db, &a.project_id, &result.language, &a.model_name, &result.segments)?;
+        }
+        if !a.keep {
+            repo::delete_unexported_clips(&db, &a.project_id)?;
+        }
         repo::insert_clips(&db, &result.clips)?;
         repo::set_project_duration(&db, &a.project_id, result.duration)?;
         repo::set_project_status(&db, &a.project_id, "ready")

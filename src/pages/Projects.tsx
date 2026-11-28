@@ -14,6 +14,7 @@ import { useLibrary } from '@/stores/library'
 import { toast } from '@/stores/ui'
 import type { Project, ProjectStatus } from '@/types'
 import { ReviewDialog } from '@/components/ReviewDialog'
+import { MoreClipsDialog } from '@/components/MoreClipsDialog'
 
 /** How far the work on a processing project has got. A link is downloaded first, then transcribed. */
 function ProjectProgress({ id, className }: { id: string; className?: string }) {
@@ -42,6 +43,8 @@ export function Projects() {
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [del, setDel] = useState<Project | null>(null)
   const [review, setReview] = useState<string | null>(null)
+  const [more, setMore] = useState<Project | null>(null)
+  const canAddClips = (p: Project) => p.status === 'ready' && !!p.sourcePath
 
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -55,7 +58,8 @@ export function Projects() {
       )
   }, [projects, q, filter, sort])
 
-  const open = (p: Project) => (p.status === 'ready' ? nav(`/clips?project=${p.id}`) : toast({ kind: 'warning', title: `${p.title} has no clips`, body: p.status === 'failed' ? 'This project failed. Retry it from History.' : 'It is not finished yet.' }))
+  // A project making more clips still has its old ones to open.
+  const open = (p: Project) => (p.status === 'ready' || p.clipCount > 0 ? nav(`/clips?project=${p.id}`) : toast({ kind: 'warning', title: `${p.title} has no clips`, body: p.status === 'failed' ? 'This project failed. Retry it from History.' : 'It is not finished yet.' }))
 
   return (
     <Page className="flex flex-col gap-4">
@@ -102,11 +106,16 @@ export function Projects() {
               {p.status === 'processing' ? <ProjectProgress id={p.id} className="px-3.5 pb-1.5" /> : null}
               <div className="flex items-center gap-2 px-3.5 pb-3.5 pt-1">
                 <Badge tone={PROJECT_STATUS[p.status].tone}>{PROJECT_STATUS[p.status].label}</Badge>
-                <span className="text-label text-t2">{p.clipCount} clips</span>
-                {p.status === 'ready' && p.clipCount > 0 ? <Button variant="ghost" size="sm" onClick={() => setReview(p.id)}>Review</Button> : null}
+                <span className="text-label text-t2">{p.clipCount} {p.clipCount === 1 ? 'clip' : 'clips'}</span>
                 <span className="ml-auto text-meta text-t3">{fmtRelative(p.createdAt)}</span>
                 <Button variant="ghost" size="icon-sm" aria-label={`Delete ${p.title}`} onClick={() => setDel(p)}><Trash2 size={14} /></Button>
               </div>
+              {canAddClips(p) || (p.status === 'ready' && p.clipCount > 0) ? (
+                <div className="flex gap-2 px-3.5 pb-3.5">
+                  {p.status === 'ready' && p.clipCount > 0 ? <Button size="sm" className="flex-1 justify-center" onClick={() => setReview(p.id)}>Review</Button> : null}
+                  {canAddClips(p) ? <Button size="sm" className="flex-1 justify-center" onClick={() => setMore(p)}>More clips</Button> : null}
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -115,7 +124,7 @@ export function Projects() {
           <table className="w-full text-left text-body">
             <thead className="border-b border-line text-label text-t3">
               <tr>
-                <th className="px-4 py-2.5 font-medium">Project</th><th className="px-3 font-medium">Source</th><th className="px-3 font-medium">Length</th><th className="px-3 font-medium">Clips</th><th className="px-3 font-medium">Status</th><th className="px-3 font-medium">Created</th><th className="w-24 px-3" />
+                <th className="px-4 py-2.5 font-medium">Project</th><th className="px-3 font-medium">Source</th><th className="px-3 font-medium">Length</th><th className="px-3 font-medium">Clips</th><th className="px-3 font-medium">Status</th><th className="px-3 font-medium">Created</th><th className="w-48 px-3" />
               </tr>
             </thead>
             <tbody>
@@ -127,7 +136,7 @@ export function Projects() {
                   <td className="px-3">{p.clipCount}</td>
                   <td className="px-3"><Badge tone={PROJECT_STATUS[p.status].tone}>{PROJECT_STATUS[p.status].label}</Badge>{p.status === 'processing' ? <ProjectProgress id={p.id} className="mt-1.5 w-36" /> : null}</td>
                   <td className="px-3 text-t2">{fmtRelative(p.createdAt)}</td>
-                  <td className="px-3"><div className="flex justify-end gap-1"><Button size="sm" onClick={() => open(p)}>Open</Button><Button variant="ghost" size="icon-sm" aria-label={`Delete ${p.title}`} onClick={() => setDel(p)}><Trash2 size={14} /></Button></div></td>
+                  <td className="px-3"><div className="flex justify-end gap-1">{canAddClips(p) ? <Button variant="ghost" size="sm" onClick={() => setMore(p)}>More clips</Button> : null}<Button size="sm" onClick={() => open(p)}>Open</Button><Button variant="ghost" size="icon-sm" aria-label={`Delete ${p.title}`} onClick={() => setDel(p)}><Trash2 size={14} /></Button></div></td>
                 </tr>
               ))}
             </tbody>
@@ -136,6 +145,7 @@ export function Projects() {
       )}
 
       {review ? <ReviewDialog projectId={review} onClose={() => setReview(null)} /> : null}
+      {more ? <MoreClipsDialog project={more} onClose={() => setMore(null)} /> : null}
 
       <ConfirmDialog
         open={!!del}

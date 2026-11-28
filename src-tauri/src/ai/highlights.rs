@@ -17,11 +17,14 @@ pub struct Options {
     pub moments: Vec<String>,
     /// 10..=100. Higher keeps weaker candidates.
     pub sensitivity: u32,
+    /// (start, end) of clips the project already has. Picks never repeat them.
+    #[serde(skip)]
+    pub taken: Vec<(f64, f64)>,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Options { min_len: 20.0, max_len: 60.0, count: 6, moments: vec![], sensitivity: 60 }
+        Options { min_len: 20.0, max_len: 60.0, count: 6, moments: vec![], sensitivity: 60, taken: vec![] }
     }
 }
 
@@ -171,11 +174,14 @@ pub fn find(segs: &[Segment], loud: &[f32], total: f64, o: &Options) -> Vec<High
     let floor = 40 + (100u32.saturating_sub(o.sensitivity.clamp(10, 100))) / 5;
     let mut picked: Vec<Highlight> = Vec::new();
     for h in scored {
-        let overlaps = picked.iter().any(|p| {
-            let overlap = (h.end.min(p.end) - h.start.max(p.start)).max(0.0);
-            overlap > 0.2 * (h.end - h.start).min(p.end - p.start)
+        let mut used = picked.iter().map(|p| (p.start, p.end)).chain(o.taken.iter().copied());
+        let overlaps = used.any(|(start, end)| {
+            let overlap = (h.end.min(end) - h.start.max(start)).max(0.0);
+            overlap > 0.2 * (h.end - h.start).min(end - start)
         });
-        if !overlaps && (picked.is_empty() || h.score >= floor) {
+        // A first run always gives the best moment. "More clips" only adds ones worth keeping.
+        let first = picked.is_empty() && o.taken.is_empty();
+        if !overlaps && (first || h.score >= floor) {
             picked.push(h);
         }
         if picked.len() == o.count {
@@ -214,7 +220,7 @@ mod tests {
     }
 
     fn opts(count: usize) -> Options {
-        Options { min_len: 7.0, max_len: 14.0, count, moments: vec![], sensitivity: 60 }
+        Options { min_len: 7.0, max_len: 14.0, count, moments: vec![], sensitivity: 60, taken: vec![] }
     }
 
     #[test]
@@ -241,6 +247,18 @@ mod tests {
     }
 
     #[test]
+    fn more_clips_skip_the_moments_already_taken() {
+        let (s, l) = sample();
+        let o = Options { sensitivity: 100, ..opts(1) };
+        let first = find(&s, &l, 50.0, &o)[0].clone();
+        let next = find(&s, &l, 50.0, &Options { taken: vec![(first.start, first.end)], ..o.clone() });
+        assert_eq!(next.len(), 1);
+        let overlap = (next[0].end.min(first.end) - next[0].start.max(first.start)).max(0.0);
+        assert!(overlap <= 0.2 * (next[0].end - next[0].start).min(first.end - first.start), "{first:?} {next:?}");
+        assert!(find(&s, &l, 50.0, &Options { taken: vec![(0.0, 50.0)], ..o }).is_empty(), "nothing left");
+    }
+
+    #[test]
     fn lower_sensitivity_keeps_fewer_clips() {
         let (s, l) = sample();
         let strict = find(&s, &l, 50.0, &Options { sensitivity: 10, ..opts(6) });
@@ -252,7 +270,7 @@ mod tests {
     #[test]
     fn a_preference_changes_the_ranking() {
         let segs = make(&[(0.0, "here is the secret and the biggest mistake nobody tells you."), (20.0, "what would you do? what should you charge? why would they pay?")]);
-        let o = |m: &str| Options { min_len: 3.0, max_len: 8.0, count: 1, moments: vec![m.into()], sensitivity: 100 };
+        let o = |m: &str| Options { min_len: 3.0, max_len: 8.0, count: 1, moments: vec![m.into()], sensitivity: 100, taken: vec![] };
         assert_eq!(find(&segs, &[], 30.0, &o("Key insights"))[0].start, 0.0);
         assert!(find(&segs, &[], 30.0, &o("Questions and answers"))[0].start > 10.0);
     }

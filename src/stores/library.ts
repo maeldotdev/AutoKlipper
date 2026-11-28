@@ -92,6 +92,8 @@ interface LibraryStore {
   clipJob: Record<string, string>
   /** Transcribe a local file and create its clips with real highlight detection. */
   startFileAnalysis: (o: { path: string; title: string; duration: number; sizeBytes: number; gen: GenerateOpts }) => Promise<{ projectId: string; jobId: string } | null>
+  /** New clips for a saved project, from moments it has no clip of yet. */
+  moreClips: (projectId: string, count: number, minLen: number, maxLen: number) => Promise<void>
   startLinkImport: (o: {
     url: string
     uploader?: string | null
@@ -111,10 +113,10 @@ const pendingGen = new Map<string, GenerateOpts>()
 
 const errorText = (e: unknown) => (typeof e === 'string' ? e : e instanceof Error ? e.message : 'Unknown error')
 
-function analyzeRequest(projectId: string, gen: GenerateOpts) {
+function analyzeRequest(projectId: string, gen: GenerateOpts, more = false) {
   const s = useSettings.getState()
   return api.ai.analyze({
-    projectId,
+    projectId, more,
     options: { minLen: gen.minLen, maxLen: gen.maxLen, count: gen.count, moments: gen.moments ?? [], sensitivity: s.sensitivity },
     aspect: gen.aspect, target: gen.target, captions: gen.withCaptions, model: s.model, language: s.language,
     speakers: s.speakerDetection, ollamaModel: s.ollamaEnabled && s.ollamaModel ? s.ollamaModel : null, concurrency: s.concurrency,
@@ -170,10 +172,11 @@ export const useLibrary = create<LibraryStore>((set, get) => ({
       jobs.filter((j) => j.status === 'running').forEach((j) => tick(j.id, 25 + Math.random() * 15, undefined, true))
       return
     }
-    // Nothing survives a restart: a project still 'processing' lost its download. Mark it failed so it can be deleted or retried.
-    const stuck = projects.filter((p) => p.status === 'processing')
-    stuck.forEach((p) => persist(api.library.setProjectStatus(p.id, 'failed'), 'interrupted project'))
-    const fixedProjects = projects.map((p) => (p.status === 'processing' ? { ...p, status: 'failed' as const } : p))
+    // Nothing survives a restart: a project still 'processing' lost its job. One with clips ("More clips") is still usable;
+    // without any it is marked failed so it can be deleted or retried.
+    const after = (p: Project) => (p.clipCount > 0 ? ('ready' as const) : ('failed' as const))
+    projects.filter((p) => p.status === 'processing').forEach((p) => persist(api.library.setProjectStatus(p.id, after(p)), 'interrupted project'))
+    const fixedProjects = projects.map((p) => (p.status === 'processing' ? { ...p, status: after(p) } : p))
     // A job still marked running at startup was cut off when AutoKlipper closed. Say so instead of faking progress.
     const fixed = jobs.map((j) =>
       j.status === 'running' || j.status === 'queued'
@@ -351,7 +354,7 @@ export const useLibrary = create<LibraryStore>((set, get) => ({
     const isDownload = job.kind === 'download'
     const isAnalysis = job.kind === 'transcribe'
     if (job.status === 'completed') {
-      const title = isAnalysis ? `Found ${e.clipsAdded ?? 0} clips` : isDownload ? 'Download finished' : 'Export finished'
+      const title = isAnalysis ? (e.clipsAdded ? `Found ${e.clipsAdded} ${e.clipsAdded === 1 ? 'clip' : 'clips'}` : 'No new moments left') : isDownload ? 'Download finished' : 'Export finished'
       const msg = { kind: 'success' as const, title, body: isDownload || isAnalysis ? job.title : (exportPath ?? job.title) }
       useUi.getState().notify(msg)
       toast(msg)
@@ -377,6 +380,19 @@ export const useLibrary = create<LibraryStore>((set, get) => ({
       void api.library.deleteProject(pid).catch(() => undefined)
       toast({ kind: 'error', title: 'Could not start transcription', body: errorText(e) })
       return null
+    }
+  },
+
+  moreClips: async (projectId, count, minLen, maxLen) => {
+    // Same shape, platform and captions as the newest clip the project has.
+    const last = get().clips.find((c) => c.projectId === projectId)
+    const gen: GenerateOpts = {
+      count, minLen, maxLen, aspect: last?.aspect ?? '9:16', target: last?.target ?? 'tiktok', withCaptions: last ? last.captions !== 'none' : true,
+    }
+    try {
+      await analyzeRequest(projectId, gen, true)
+    } catch (e) {
+      toast({ kind: 'error', title: 'Could not make more clips', body: errorText(e) })
     }
   },
 

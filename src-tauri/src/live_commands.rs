@@ -314,6 +314,7 @@ pub async fn live_start(app: AppHandle, state: State<'_, AppState>, request: Liv
             count: 3,
             moments: request.moments.clone(),
             sensitivity: request.sensitivity,
+            taken: vec![],
         },
         auto_clip: request.auto_clip,
     };

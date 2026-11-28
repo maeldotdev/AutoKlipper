@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.0
+- More clips: a button on a saved project finds new clips from moments that have none yet. Your clips stay, and the saved transcript is reused.
+
 ## 0.4.0
 - Tagalog added to the spoken language list.
 - Gaming layout: a button swaps the game and the camera.

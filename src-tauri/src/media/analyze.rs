@@ -23,6 +23,17 @@ pub struct Analyze {
     pub hue: i64,
     pub ollama_model: Option<String>,
     pub temp: PathBuf,
+    /// "More clips": the project's clips stay, and a failure leaves it ready.
+    pub keep: bool,
+    /// (language, segments, duration) saved by an earlier run, so the audio is not transcribed again.
+    pub transcript: Option<(String, Vec<transcript::Segment>, f64)>,
+}
+
+impl Analyze {
+    /// The project's state when this job stops without finishing.
+    pub fn idle_status(&self) -> &'static str {
+        if self.keep { "ready" } else { "draft" }
+    }
 }
 
 pub struct Analysis {
@@ -67,6 +78,34 @@ fn s(p: &Path) -> String {
     p.display().to_string()
 }
 
+type Transcribed = (Vec<transcript::Segment>, String, f64, Vec<String>);
+
+/// Run the Whisper helper on the audio: (segments, language, duration, warnings).
+fn transcribe(a: &Analyze, wav: &Path, json: &Path, running: &Running, progress: &mut impl FnMut(f64)) -> Result<Transcribed, String> {
+    let mut args = vec![
+        s(&a.script), "transcribe".into(), "--audio".into(), s(wav), "--model-dir".into(), s(&a.model_dir),
+        "--language".into(), a.language.clone(), "--out".into(), s(json),
+    ];
+    if let Some(d) = &a.speaker_dir {
+        args.extend(["--speaker-dir".into(), s(d)]);
+    }
+    done(process::run_lines(&a.python, &args, running, |line| {
+        if let Some(p) = parse_progress(line) {
+            progress(8.0 + p * 0.82);
+        }
+    })?, helper_error)?;
+
+    let raw = std::fs::read_to_string(json).map_err(|e| format!("The transcript file is missing: {e}"))?;
+    let doc: serde_json::Value = serde_json::from_str(&raw).map_err(|e| format!("The transcript file is damaged: {e}"))?;
+    let segments = transcript::from_helper(&doc).map_err(|e| e.to_string())?;
+    if segments.is_empty() {
+        return Err("No speech was found in this video.".into());
+    }
+    let duration = doc["duration"].as_f64().unwrap_or(segments.last().map_or(0.0, |x| x.end));
+    let warnings = doc["warning"].as_str().map(String::from).into_iter().collect();
+    Ok((segments, doc["language"].as_str().unwrap_or("").to_string(), duration, warnings))
+}
+
 /// `stem` names the temporary files, which the caller removes afterwards.
 pub fn run(a: &Analyze, stem: &str, running: &Running, mut progress: impl FnMut(f64)) -> Result<Analysis, String> {
     let wav = a.temp.join(format!("{stem}.wav"));
@@ -87,28 +126,14 @@ pub fn run(a: &Analyze, stem: &str, running: &Running, mut progress: impl FnMut(
     })?;
     progress(8.0);
 
-    let mut args = vec![
-        s(&a.script), "transcribe".into(), "--audio".into(), s(&wav), "--model-dir".into(), s(&a.model_dir),
-        "--language".into(), a.language.clone(), "--out".into(), s(&json),
-    ];
-    if let Some(d) = &a.speaker_dir {
-        args.extend(["--speaker-dir".into(), s(d)]);
-    }
-    done(process::run_lines(&a.python, &args, running, |line| {
-        if let Some(p) = parse_progress(line) {
-            progress(8.0 + p * 0.82);
+    let (mut segments, language, duration, mut warnings) = match &a.transcript {
+        Some((language, segments, duration)) => {
+            let end = segments.last().map_or(0.0, |x| x.end);
+            (segments.clone(), language.clone(), duration.max(end), Vec::new())
         }
-    })?, helper_error)?;
-
-    let raw = std::fs::read_to_string(&json).map_err(|e| format!("The transcript file is missing: {e}"))?;
-    let doc: serde_json::Value = serde_json::from_str(&raw).map_err(|e| format!("The transcript file is damaged: {e}"))?;
-    let mut segments = transcript::from_helper(&doc).map_err(|e| e.to_string())?;
-    if segments.is_empty() {
-        return Err("No speech was found in this video.".into());
-    }
+        None => transcribe(a, &wav, &json, running, &mut progress)?,
+    };
     highlights::mark_keywords(&mut segments);
-    let duration = doc["duration"].as_f64().unwrap_or(segments.last().map_or(0.0, |x| x.end));
-    let mut warnings: Vec<String> = doc["warning"].as_str().map(String::from).into_iter().collect();
 
     progress(91.0);
     let loud = audio::loudness(&wav).map_err(|e| e.to_string())?;
@@ -159,7 +184,7 @@ pub fn run(a: &Analyze, stem: &str, running: &Running, mut progress: impl FnMut(
         })
         .collect();
     progress(99.0);
-    Ok(Analysis { segments, language: doc["language"].as_str().unwrap_or("").to_string(), duration, clips, warnings })
+    Ok(Analysis { segments, language, duration, clips, warnings })
 }
 
 #[cfg(test)]
@@ -210,13 +235,15 @@ mod tests {
             model_name: "tiny".into(),
             language: "auto".into(),
             speaker_dir: env::has_speaker_models(&models).then(|| env::speaker_dir(&models)),
-            options: highlights::Options { min_len: 8.0, max_len: 20.0, count: 3, moments: vec![], sensitivity: 80 },
+            options: highlights::Options { min_len: 8.0, max_len: 20.0, count: 3, moments: vec![], sensitivity: 80, taken: vec![] },
             aspect: "9:16".into(),
             target: "tiktok".into(),
             captions: true,
             hue: 0,
             ollama_model: None,
             temp: dir.clone(),
+            keep: false,
+            transcript: None,
         };
         let mut last = 0.0;
         let r = run(&a, "t", &Running::default(), |p| last = p).expect("analysis");
